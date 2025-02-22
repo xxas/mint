@@ -8,7 +8,7 @@ import :context;
 
 /*** **
  **
- **  module:   xxas: scalar
+ **  module:   mint: scalar
  **  purpose:  Represents the underlying byte slice of a provided argument.
  **
  *** **/

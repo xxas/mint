@@ -9,7 +9,7 @@ import :context;
 
 /*** **
  **
- **  module:   xxas: binding
+ **  module:   mint: binding
  **  purpose:  Low-level function bindings from scalar operands.
  **
  *** **/

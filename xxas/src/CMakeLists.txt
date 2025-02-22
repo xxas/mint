@@ -18,6 +18,8 @@ target_sources(
 
     # Target modules.
     mod.cppm
+    meta.cppm
+    format.cppm
     error.cppm
     tests.cppm
     fnv1a.cppm

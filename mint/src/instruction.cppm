@@ -11,7 +11,7 @@ import :operand;
 
 /*** **
  **
- **  module:   xxas: instruction
+ **  module:   mint: instruction
  **  purpose:  High-level semantically validating instruction containing
  **            an opcode and expression-based operands.
  **

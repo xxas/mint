@@ -7,7 +7,7 @@ import :traits;
 
 /*** **
  **
- **  module:   xxas: semantics
+ **  module:   mint: semantics
  **  purpose:  Building high-level semantical guide systems for user-defined
  **            instruction set architectures.
  *** **/

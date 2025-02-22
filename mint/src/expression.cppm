@@ -7,7 +7,7 @@ import :scalar;
 
 /*** **
  **
- **  module:   xxas: expression
+ **  module:   mint: expression
  **  purpose:  Arithmetic expression tree with scalar operands,
  **            precendence handling, parsing, and evaluation.
  **
@@ -22,12 +22,10 @@ namespace mint
             Add = 0, Sub, Mul, Div,
         };
 
-        export struct Operation
+        template<class T, class U> constexpr auto visit(Operator type, const T& a, const U& b)
+            -> T
         {
-            Operator type;
-
-            template <class T, class U> using OpFunc = T (*)(T, U);
-            template <class T, class U> constexpr static inline std::array<OpFunc<T, U>, 4> map
+            constexpr static std::array map
             {
                 +[](T a, U b) constexpr -> T { return a + b; },
                 +[](T a, U b) constexpr -> T { return a - b; },
@@ -35,113 +33,129 @@ namespace mint
                 +[](T a, U b) constexpr -> T { return a / b; },
             };
 
-            template<class T, class U> constexpr auto operator()(const T& a, const U& b) const
-                -> T
-            {
-                return map<T, U>[static_cast<std::size_t>(this->type)](a, b);
-            };
+            return map[static_cast<std::size_t>(type)](a, b);
         };
+
+        export using Tokens = std::vector<std::pair<Scalar, Operator>>;
     };
 
     export struct Expression
     {
         using ExprPtr = std::unique_ptr<Expression>;
 
-        struct Node
+        struct Operation
         {
-            Scalar value;
-            explicit Node(Scalar v) : value(std::move(v)) {};
-        };
+            expr::Operator op;
+            ExprPtr        left;
+            ExprPtr        right;
 
-        struct BinaryOp
-        {
-            expr::Operation op;
-            ExprPtr left;
-            ExprPtr right;
-
-            BinaryOp(expr::Operation o, ExprPtr l, ExprPtr r)
+            Operation(expr::Operator o, ExprPtr l, ExprPtr r)
                 : op(o), left(std::move(l)), right(std::move(r)) {};
         };
 
-        std::variant<Node, BinaryOp> expr;
+        using Variant = std::variant<Scalar, Operation>;
 
-        explicit Expression(Scalar value) : expr(Node(std::move(value))) {};
+        // Variant between a and a constant.
+        Variant expr;
 
-        Expression(expr::Operation op, ExprPtr left, ExprPtr right)
-            : expr(BinaryOp(op, std::move(left), std::move(right))) {};
+        // Construct a constant.
+        explicit Expression(Scalar value)
+            : expr(std::move(value)) {};
 
-        template <class T> constexpr auto evaluate() const -> T
+        // Construct a binary operation.
+        Expression(expr::Operator op, ExprPtr left, ExprPtr right)
+            : expr(Operation(op, std::move(left), std::move(right))) {};
+
+        template <class T> constexpr auto evaluate() const
+            -> T
         {
             struct Evaluator
             {
-                constexpr auto operator()(const Node& node) const
+                constexpr auto operator()(const Scalar& scalar) const
                     -> T
-                {
-                    return node.value.template as<T>();
-                }
+                {   // Return the scalar as T.
+                    return scalar.template as<T>();
+                };
 
-                constexpr auto operator()(const BinaryOp& binop) const
+                constexpr auto operator()(const Operation& binary) const
                     -> T
-                {
-                    T left = std::visit(*this, binop.left->expr);
-                    T right = std::visit(*this, binop.right->expr);
-                    return std::invoke(binop.op, left, right);
-                }
+                {   // Extract the left and right operands.
+                    T left  = std::visit(*this, binary.left->expr);
+                    T right = std::visit(*this, binary.right->expr);
+
+                    // Invoke the binary operator.
+                    return expr::visit(binary.op, left, right);
+                };
             };
 
+            // Recursively evaluate each operator and operands.
             return std::visit(Evaluator{}, expr);
         };
 
-        static auto parse(std::vector<std::pair<Scalar, expr::Operation>> tokens)
-            -> ExprPtr
+        enum class ParseErrs: std::uint8_t
+        {
+            Empty,
+        };
+
+        using ParseErr    = xxas::Error<ParseErrs>;
+        using ParseResult = std::expected<ExprPtr, ParseErr>;
+
+        // Shunting-yard parse algorithm implementation. This takes a range of tokens--represented by
+        // operands with operators between, or in this case after.
+        static auto parse(const expr::Tokens& tokens)
+            -> ParseResult
         {
             if (tokens.empty())
             {
-                return nullptr;
+                return ParseErr::err(ParseErrs::Empty, "Expression was passed an empty range of tokens");
             };
 
+            // Returns the precedence of a binary operator.
             auto get_precedence = [](expr::Operator type)
             {
                 switch(type)
                 {
                     case expr::Operator::Mul:
                     case expr::Operator::Div:
+                    {
                         return 2;
+                    };
                     case expr::Operator::Add:
                     case expr::Operator::Sub:
+                    {
                         return 1;
+                    };
                     default:
+                    {
                         return 0;
-                }
+                    };
+                };
             };
 
             std::vector<Expression::ExprPtr> values;
-            std::vector<expr::Operation> operators;
+            std::vector<expr::Operator>      operators;
 
-            values.push_back(std::make_unique<Expression>(tokens[0].first));
+            values.push_back(std::make_unique<Expression>(tokens.front().first));
 
-            for (std::size_t i = 1; i < tokens.size(); i++)
+            for(auto& [scalar, op]: std::ranges::subrange(tokens.begin() + 1uz, tokens.end()))
             {
-                expr::Operation op = tokens[i].second;
-                Scalar next_value = tokens[i].first;
-
-                while (!operators.empty() && get_precedence(operators.back().type) >= get_precedence(op.type))
+                while(!operators.empty() && get_precedence(operators.back()) >= get_precedence(op))
                 {
                     auto right = std::move(values.back()); values.pop_back();
-                    auto left = std::move(values.back()); values.pop_back();
+                    auto left  = std::move(values.back()); values.pop_back();
 
                     values.push_back(std::make_unique<Expression>(operators.back(), std::move(left), std::move(right)));
                     operators.pop_back();
                 };
 
-                values.push_back(std::make_unique<Expression>(next_value));
+                values.push_back(std::make_unique<Expression>(scalar));
                 operators.push_back(op);
             };
 
-            while (!operators.empty())
+            while(!operators.empty())
             {
                 auto right = std::move(values.back()); values.pop_back();
-                auto left = std::move(values.back()); values.pop_back();
+                auto left  = std::move(values.back()); values.pop_back();
 
                 values.push_back(std::make_unique<Expression>(operators.back(), std::move(left), std::move(right)));
                 operators.pop_back();

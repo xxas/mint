@@ -5,7 +5,7 @@ import xxas;
 
 /*** **
  **
- **  module:   xxas: memory
+ **  module:   mint: memory
  **  purpose:  Provides cross-thread friendly emulation of virtual to physical mapping,
  **            page protection, allocation management, read, and writing to memory.
  **

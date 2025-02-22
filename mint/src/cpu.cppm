@@ -7,7 +7,7 @@ import :traits;
 
 /*** **
  **
- **  module:   xxas: cpu
+ **  module:   mint: cpu
  **  purpose:  Cross-thread safe CPU emulation,
  **            with user-defined register initialization.
  **

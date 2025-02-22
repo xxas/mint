@@ -8,7 +8,7 @@ import :cpu;
 
 /*** **
  **
- **  module:   xxas: context
+ **  module:   mint: context
  **  purpose:  Process and thread environment context blocks.
  **
  *** **/

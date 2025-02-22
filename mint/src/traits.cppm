@@ -2,10 +2,13 @@ export module mint: traits;
 
 import std;
 
-/*  module:   xxas: traits
- *  purpose:  Defines high-level operand traits, describing the explicit
- *            constraints and implicit characteristics of assembly operands.
- */
+/*** **
+ **
+ **  module:   mint: traits
+ **  purpose:  Defines high-level operand traits, describing the explicit
+ *             constraints and implicit characteristics of assembly operands.
+ **
+ *** **/
 
 namespace mint
 {
@@ -64,13 +67,12 @@ namespace mint
     };
 
     export struct Traits
-    {   // Dictates direction of operation on data.
+    {
         traits::Direction   direction: 1;
         traits::Source        sources: 3;
         traits::Bitness       bitness: 3;
         traits::Format         format: 1;
 
-        // Returns if attributes allow for support of given sources.
         constexpr auto operator!=(const traits::Source& source) const noexcept
             -> bool
         {
