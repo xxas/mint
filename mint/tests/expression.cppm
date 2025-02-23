@@ -33,7 +33,7 @@ namespace mint_test
         xxas::assert_eq(expression.has_value(), true);
  
         // Evaluate and cast the expression result to double.
-        auto result = (*expression)->evaluate<double>();
+        auto result = (*expression).evaluate<double>();
  
         // (0.5 * mass * velocity * velocity) + 10 - (5.0 / pi);
         double expected = (half * mass * velocity * velocity) + ten - (five / pi);
@@ -63,7 +63,7 @@ namespace mint_test
         xxas::assert_eq(expression.has_value(), true);
 
         // Evaluate and cast the expression result to a double,
-        auto result     = (*expression)->evaluate<std::uintptr_t>();
+        auto result     = (*expression).evaluate<std::uintptr_t>();
         auto value      = *reinterpret_cast<double*>(result);
 
         // Assert the evaluation is equal to the expected value at index.

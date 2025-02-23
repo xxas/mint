@@ -12,7 +12,7 @@ import :semantics;
 /*** **
  **
  **  module:   mint: operand
- **  purpose:  High-level expression-based operand with meta data information.
+ **  purpose:  High-level expression-based operand with metadata.
  **
  *** **/
 
@@ -20,15 +20,14 @@ namespace mint
 {
     export struct Operand
     {
-        using Variant = std::variant<Expression, Scalar>;
-
-        Variant    variant;
+        Expression expression;
         Traits     traits;
 
         enum class EvalErrs: std::uint8_t
         {
             Uninitialized,
             Casting,
+            Nonconstant,
         };
 
         using EvalErr      = xxas::Error<EvalErrs, Memory::MemErr>;
@@ -56,7 +55,12 @@ namespace mint
             +[](Traits& traits, const Expression& expression, Teb& teb)
                 -> EvalResult
             {
-                return EvalErr::err(EvalErrs::Casting, "Unable to cast immediate value to evaluatable result");
+                return expression.constant().transform([](Scalar scalar)
+                    -> EvalResult
+                {
+                    return scalar;
+                })
+                .value_or(EvalErr::err(EvalErrs::Nonconstant, "Immediate value expects a constant expression"));
             },
             // Memory address from scalar.
             +[](Traits& traits, const Expression& expression, Teb& teb)
@@ -84,26 +88,11 @@ namespace mint
 
         auto evaluate(Teb& teb)
             -> EvalResult
-        {
-            auto expression = [&](Expression& expr)
-                -> EvalResult
-            {   // Retrieve the source extraction function for the type of source.
-                auto source_funct = source_map[static_cast<std::size_t>(this->traits.sources)];
+        {   // Get the source function for the traits of the operand.
+            auto& source_funct = source_map[static_cast<std::size_t>(this->traits.sources)];
 
-                return std::invoke(source_funct, this->traits, expr, teb);
-            };
-
-            auto constant   = [](Scalar& scalar)
-                -> EvalResult
-            {
-                return std::forward<Scalar>(scalar);
-            };
-
-            // Evaluate the expression and retrieve the scalar based on its provided traits.
-            return this->variant.visit(xxas::meta::Overloads
-            {
-                expression, constant
-            });
+            // Return the evaluated result from the source function.
+            return std::invoke(source_funct, this->traits, this->expression, teb);
         };
     };
 };

@@ -51,12 +51,10 @@ namespace mint
         constexpr auto bitness_for(const Bitness& bitness) noexcept
             -> std::uint16_t
         {
-            constexpr static std::array<std::uint16_t, 7> map
-            {
-                8, 16, 32, 64, 128, 256, 512
-            };
+            constexpr static std::array<std::uint16_t, 7> bitness_map
+            { 8, 16, 32, 64, 128, 256, 512 };
 
-            return map[static_cast<std::size_t>(bitness)];
+            return bitness_map[static_cast<std::size_t>(bitness)];
         };
 
         // Dictates the format of the arithmetic e.g. floating point or integral.

@@ -53,7 +53,7 @@ namespace mint
                     reg.resize(bitness);
 
                     // Initialize the register to the user-specified bitness.
-                    reg_file[i] = reg;
+                    reg_file.push_back(std::move(reg));
                 };
 
                 return ThreadFile

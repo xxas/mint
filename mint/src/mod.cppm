@@ -1,6 +1,7 @@
 export module mint;
 
 export import :memory;
+export import :stackframe;
 export import :cpu;
 
 export import :context;

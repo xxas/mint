@@ -4,7 +4,6 @@ import std;
 import xxas;
 
 import :traits;
-import :context;
 
 /*** **
  **
@@ -35,9 +34,15 @@ namespace mint
         };
 
         template <typename T> constexpr auto as() const
-            -> T
+            -> const T&
         {
             return *reinterpret_cast<const T*>(bytes.data());
+        };
+
+        template <typename T> constexpr auto as()
+            -> T&
+        {
+            return *reinterpret_cast<T*>(bytes.data());
         };
     };
 };

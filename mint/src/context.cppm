@@ -5,6 +5,7 @@ import xxas;
 
 import :memory;
 import :cpu;
+import :stackframe;
 
 /*** **
  **
@@ -59,7 +60,7 @@ namespace mint
         PebRef peb_ref;
 
         // Stack frame for the current thread.
-        mem::StackFrame stack_frame;
+        StackFrame stack_frame;
 
         auto peb()
             -> Peb&
@@ -74,7 +75,7 @@ namespace mint
         };
 
         auto stackframe()
-            -> mem::StackFrame&
+            -> StackFrame&
         {
             return this->stack_frame;
         };

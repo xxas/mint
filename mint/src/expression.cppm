@@ -1,39 +1,60 @@
-export module mint: expression;
-
+export module mint:expression;
 import std;
 
 import :traits;
 import :scalar;
 
-/*** **
- **
+/***
  **  module:   mint: expression
  **  purpose:  Arithmetic expression tree with scalar operands,
- **            precendence handling, parsing, and evaluation.
- **
- *** **/
+ **            precedence handling, parsing, and evaluation.
+ ***/
 
 namespace mint
 {
     namespace expr
     {
-        export enum class Operator: std::uint8_t
+        export enum class Operator : std::uint8_t
         {
-            Add = 0, Sub, Mul, Div,
+            Add = 0, Sub, Mul, Div
         };
 
-        template<class T, class U> constexpr auto visit(Operator type, const T& a, const U& b)
+        // Visit binary operator with operands first and second.
+        template <class T, class U> constexpr auto visit(Operator type, T first, U second)
             -> T
         {
             constexpr static std::array map
             {
-                +[](T a, U b) constexpr -> T { return a + b; },
-                +[](T a, U b) constexpr -> T { return a - b; },
-                +[](T a, U b) constexpr -> T { return a * b; },
-                +[](T a, U b) constexpr -> T { return a / b; },
+                +[](T first, U second) constexpr -> T { return first + second; },
+                +[](T first, U second) constexpr -> T { return first - second; },
+                +[](T first, U second) constexpr -> T { return first * second; },
+                +[](T first, U second) constexpr -> T { return first / second; },
             };
 
-            return map[static_cast<std::size_t>(type)](a, b);
+            // Extract the binary operation for the type.
+            auto& funct =  map[static_cast<std::size_t>(type)];
+
+            // Invoke with the operands.
+            return std::invoke(funct, first, second);
+        }
+
+        struct Node;
+        struct Branch
+        {
+            using NodePtr = std::unique_ptr<Node>;
+            Operator operation;
+            NodePtr  left;
+            NodePtr  right;
+        };
+
+        struct Node
+        {
+            using Leaf    = Scalar;
+            using Variant = std::variant<Branch, Leaf>;
+            Variant variant;
+
+            explicit Node(Leaf leaf) : variant(std::move(leaf)) {};
+            explicit Node(Branch branch) : variant(std::move(branch)) {};
         };
 
         export using Tokens = std::vector<std::pair<Scalar, Operator>>;
@@ -41,79 +62,74 @@ namespace mint
 
     export struct Expression
     {
-        using ExprPtr = std::unique_ptr<Expression>;
+        using NodePtr = std::unique_ptr<expr::Node>;
 
-        struct Operation
+        NodePtr root;
+
+        explicit Expression(expr::Node::Leaf leaf)
+            : root(std::make_unique<expr::Node>(std::move(leaf))) {};
+
+        explicit Expression(expr::Branch branch)
+            : root(std::make_unique<expr::Node>(std::move(branch))) {};
+
+        explicit Expression(NodePtr node)
+            : root(std::move(node)) {};
+
+         constexpr auto constant() const
+            -> std::optional<expr::Node::Leaf>
         {
-            expr::Operator op;
-            ExprPtr        left;
-            ExprPtr        right;
-
-            Operation(expr::Operator o, ExprPtr l, ExprPtr r)
-                : op(o), left(std::move(l)), right(std::move(r)) {};
+            return this->root->variant.visit(xxas::meta::Overloads
+            {
+                [](const expr::Node::Leaf& leaf) -> std::optional<Scalar> { return std::make_optional(leaf); },
+                [](const expr::Branch& branch)   -> std::optional<Scalar> { return std::nullopt; }
+            });
         };
 
-        using Variant = std::variant<Scalar, Operation>;
-
-        // Variant between a and a constant.
-        Variant expr;
-
-        // Construct a constant.
-        explicit Expression(Scalar value)
-            : expr(std::move(value)) {};
-
-        // Construct a binary operation.
-        Expression(expr::Operator op, ExprPtr left, ExprPtr right)
-            : expr(Operation(op, std::move(left), std::move(right))) {};
-
-        template <class T> constexpr auto evaluate() const
+        // Evaluate the expression interpreting scalars as T.
+        template<class T> constexpr auto evaluate() const
             -> T
         {
             struct Evaluator
             {
-                constexpr auto operator()(const Scalar& scalar) const
+                constexpr auto operator()(const expr::Node::Leaf& leaf) const
                     -> T
-                {   // Return the scalar as T.
-                    return scalar.template as<T>();
-                };
+                {
+                    return leaf.template as<T>();
+                }
 
-                constexpr auto operator()(const Operation& binary) const
+                constexpr auto operator()(const expr::Branch& branch) const
                     -> T
-                {   // Extract the left and right operands.
-                    T left  = std::visit(*this, binary.left->expr);
-                    T right = std::visit(*this, binary.right->expr);
+                {
+                    T left  = std::visit(*this, branch.left->variant);
+                    T right = std::visit(*this, branch.right->variant);
 
-                    // Invoke the binary operator.
-                    return expr::visit(binary.op, left, right);
-                };
+                    return expr::visit(branch.operation, left, right);
+                }
             };
 
-            // Recursively evaluate each operator and operands.
-            return std::visit(Evaluator{}, expr);
+            // Recusively visit each node starting from root.
+            return std::visit(Evaluator{}, this->root->variant);
         };
 
-        enum class ParseErrs: std::uint8_t
+        enum class ParseErrs : std::uint8_t
         {
             Empty,
         };
 
         using ParseErr    = xxas::Error<ParseErrs>;
-        using ParseResult = std::expected<ExprPtr, ParseErr>;
+        using ParseResult = std::expected<Expression, ParseErr>;
 
-        // Shunting-yard parse algorithm implementation. This takes a range of tokens--represented by
-        // operands with operators between, or in this case after.
         static auto parse(const expr::Tokens& tokens)
             -> ParseResult
         {
             if (tokens.empty())
             {
                 return ParseErr::err(ParseErrs::Empty, "Expression was passed an empty range of tokens");
-            };
+            }
 
-            // Returns the precedence of a binary operator.
-            auto get_precedence = [](expr::Operator type)
+            auto get_precedence = [](expr::Operator type) -> int
             {
-                switch(type)
+                switch (type)
                 {
                     case expr::Operator::Mul:
                     case expr::Operator::Div:
@@ -132,36 +148,51 @@ namespace mint
                 };
             };
 
-            std::vector<Expression::ExprPtr> values;
-            std::vector<expr::Operator>      operators;
+            std::vector<NodePtr>        nodes;
+            std::vector<expr::Operator> operators;
 
-            values.push_back(std::make_unique<Expression>(tokens.front().first));
+            nodes.push_back(std::make_unique<expr::Node>(tokens.front().first));
 
-            for(auto& [scalar, op]: std::ranges::subrange(tokens.begin() + 1uz, tokens.end()))
+            for(auto& [scalar, op]: std::ranges::subrange(tokens.begin() + 1u, tokens.end()))
             {
-                while(!operators.empty() && get_precedence(operators.back()) >= get_precedence(op))
+                while (!operators.empty() && get_precedence(operators.back()) >= get_precedence(op))
                 {
-                    auto right = std::move(values.back()); values.pop_back();
-                    auto left  = std::move(values.back()); values.pop_back();
+                    auto right = std::move(nodes.back()); nodes.pop_back();
+                    auto left  = std::move(nodes.back()); nodes.pop_back();
 
-                    values.push_back(std::make_unique<Expression>(operators.back(), std::move(left), std::move(right)));
+                    nodes.push_back(std::make_unique<expr::Node>(
+                          expr::Branch
+                          {
+                              operators.back(), std::move(left), std::move(right)
+                          }
+                    ));
+
                     operators.pop_back();
                 };
 
-                values.push_back(std::make_unique<Expression>(scalar));
+                nodes.push_back(std::make_unique<expr::Node>(scalar));
                 operators.push_back(op);
             };
 
             while(!operators.empty())
             {
-                auto right = std::move(values.back()); values.pop_back();
-                auto left  = std::move(values.back()); values.pop_back();
+                auto right = std::move(nodes.back()); nodes.pop_back();
+                auto left  = std::move(nodes.back()); nodes.pop_back();
 
-                values.push_back(std::make_unique<Expression>(operators.back(), std::move(left), std::move(right)));
+                nodes.push_back(std::make_unique<expr::Node>(
+                      expr::Branch
+                      {
+                          operators.back(), std::move(left), std::move(right)
+                      }
+                ));
+
                 operators.pop_back();
             };
 
-            return std::move(values.back());
+            return Expression
+            {
+                std::move(nodes.back())
+            };
         };
     };
 };

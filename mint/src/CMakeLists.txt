@@ -21,6 +21,7 @@ target_sources(
 
     # Virtual Memory and Virtual CPU.
     memory.cppm
+    stackframe.cppm
     cpu.cppm
 
     # Thread and processs environment blocks.
