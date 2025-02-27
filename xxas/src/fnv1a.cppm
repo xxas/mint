@@ -2,6 +2,7 @@ export module xxas: fnv1a;
 
 import std;
 import :tests;
+import :meta;
 
 namespace xxas
 {
@@ -48,7 +49,7 @@ namespace xxas
             return hash;
         };
 
-        template <class T> constexpr auto operator()(const T& K) const
+        template<class T> constexpr auto operator()(const T& K) const
           -> const ValueType
         {
             return (Offset ^ static_cast<H>(K)) * Prime;

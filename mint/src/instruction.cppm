@@ -2,7 +2,6 @@ export module mint: instruction;
 
 import std;
 import xxas;
-
 import :traits;
 import :scalar;
 import :semantics;
@@ -19,10 +18,10 @@ import :operand;
 
 namespace mint
 {
-    export template<class Opcodes> struct Instruction
+    export struct Instruction
     {
         using Operands  = std::vector<Operand>;
-        using Opcode    = Opcodes;
+        using Opcode    = std::size_t;
 
         Opcode    opcode;
         Operands  operands;

@@ -41,5 +41,7 @@ namespace xxas
         {
             using Ts::operator()...;
         };
+
+        template<class T> concept arithmetic = std::is_arithmetic_v<T>;
     };
 };

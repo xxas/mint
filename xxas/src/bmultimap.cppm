@@ -5,9 +5,7 @@ import :tests;
 import :fnv1a;
 
 namespace xxas
-{   // Compile-time Binary Search Multi Map:
-    //  * A contiguous array of data allowing for arbitrarily-sized arrays for entries.
-    //  * Presorts elements on construction for binary search, O(log n) find complexity.
+{   // Compile-time Binary Search Varying Range Map
     export template<class K, class T, std::size_t... N> struct BMultiMap
     {
         using SizesType = std::array<std::size_t, sizeof...(N)>;
@@ -23,8 +21,8 @@ namespace xxas
 
         using ConstDataIterator = typename DataArray::const_iterator;
 
-        DataArray data;
-        KeyArray  keys;
+        DataArray data{};
+        KeyArray  keys{};
 
         // Total amount of elements store continously.
         constexpr auto total() const noexcept
@@ -71,44 +69,35 @@ namespace xxas
         // Constructs a constant evaluation multi map from `entries`.
         template<class... Entries> consteval BMultiMap(Entries&&... entries)
           requires (sizeof...(Entries) == sizeof...(N))
-            : keys{ [&]<auto... In>(std::index_sequence<In...>)
-                    {   // Track each key and the index it was found at.
-                        KeyArray keys
-                        {
-                            std::pair
-                            {
-                                Hasher::hash(std::get<0>(entries...[In])), In
-                            }...
-                        };
-
-                        // Sort the key pairs for binary search.
-                        std::ranges::sort(keys, [](const KeyPair& A, const KeyPair& B)
-                        {
-                            return A.first < B.first;
-                        });
- 
-                        return keys;
-                    }(std::make_index_sequence<sizeof...(N)>{}),
-                },
-              data{ [&]()
+        {
+            std::invoke([&]<auto... In>(std::index_sequence<In...>)
+            {
+                this->keys =
+                {   // Hash of each key; and
+                    // the original index of each key.
+                    std::pair
                     {
-                        auto copy = [&]<std::size_t... In>(std::index_sequence<In...>, std::array<T, TotalElements> result = {})
-                        {
-                            ((std::ranges::copy(std::get<1>(entries...[In]),
-                                result.begin() + std::accumulate(EntrySizes.begin(), EntrySizes.begin() + In, 0uz)
-                            )), ...);
+                        Hasher::hash(std::get<0>(entries...[In])), In
+                    }...
+                };
 
-                            return result;
-                        };
+                // Sort the keys by size for optimized binary searching.
+                std::ranges::sort(this->keys, [](const KeyPair& first, const KeyPair& second)
+                {
+                    return first.first < second.first;
+                });
 
-                        // Copy the entries into a contiguous array of data.
-                        return std::invoke(copy, std::make_index_sequence<sizeof...(N)>{});
-                    }()
-                } {};
+                // Move the entry data ranges into a consolidated contigous data structure.
+                ((std::ranges::move(std::get<1>(entries...[In]),
+                    this->data.begin() + std::accumulate(EntrySizes.begin(), EntrySizes.begin() + In, 0uz)
+                )), ...);
+
+            }, std::make_index_sequence<sizeof...(N)>{});
+        };
     };
 
     // Template guide for std::array.
-    export template<class K, class T, std::size_t... N> BMultiMap(std::pair<K, std::array<T, N>>...)
+    export template<class K, class T, std::size_t... N> BMultiMap(std::pair<K, std::array<T, N>>&&...)
         -> BMultiMap<K, T, N...>;
 
     //  Generate a hash key for the input data.
@@ -122,16 +111,22 @@ namespace xxas
         };
     };
 
-    export template<class K, class T, std::size_t N> constexpr auto entry(const K& key, const T (&data)[N])
+    export template<class K, class T, std::size_t N> constexpr auto entry(K&& key, T(&&data)[N])
     {   // Convert the data to std::array.
         std::array<T, N> array{};
-        std::ranges::copy(data, array.begin());
+        std::ranges::move(data, array.begin());
 
-        return std::pair{ make_key(key), array };
+        return std::pair
+        {
+            make_key(std::forward<K>(key)), std::move(array)
+        };
     };
 
-    export template<class K, class T, std::size_t N> constexpr auto entry(const K& key, const std::array<T, N>& data)
+    export template<class K, class T, std::size_t N> constexpr auto entry(K&& key, std::array<T, N>&& data)
     {
-        return std::pair{ make_key(key), data };
+        return std::pair
+        {
+            make_key(std::forward<K>(key)), std::move(data)
+        };
     };
 };

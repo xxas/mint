@@ -39,7 +39,6 @@ namespace mint_test
         double expected = (half * mass * velocity * velocity) + ten - (five / pi);
  
         // Assert the result matches expectation.
-        std::println("expected: {}, result: {}", expected, result);
         xxas::assert_eq(result, expected);
     };
 

@@ -2,9 +2,14 @@ export module mint: stackframe;
 
 import std;
 import xxas;
-
 import :memory;
 
+/*** **
+ **
+ **  module:   mint: stackframe
+ **  purpose:  Manages the stackframe for each function.
+ **
+ *** **/
 
 namespace mint
 {

@@ -27,3 +27,4 @@ enable_testing()
 # Register tests using the function.
 add_xxas_test(bmultimap)
 add_xxas_test(fnv1a)
+add_xxas_test(bmap)

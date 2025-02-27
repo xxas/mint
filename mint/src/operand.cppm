@@ -33,7 +33,7 @@ namespace mint
         using EvalErr      = xxas::Error<EvalErrs, Memory::MemErr>;
         using EvalResult   = std::expected<Scalar, EvalErr>;
 
-        constexpr static inline std::array source_map
+        template<cpu::Initializer Initializer> constexpr static inline std::array source_map
         {   // Register from scalar.
             +[](Traits& _, const Expression& expression, Teb& teb)
                 -> EvalResult
@@ -41,7 +41,7 @@ namespace mint
                 auto regid = expression.template evaluate<std::size_t>();
 
                 // Get the cpu thread file through TEB.
-                auto thread_file = teb.thread_file();
+                auto thread_file = teb.thread_file<Initializer>();
 
                 auto& reg = thread_file.get().reg_file[regid];
 
@@ -66,7 +66,7 @@ namespace mint
             +[](Traits& traits, const Expression& expression, Teb& teb)
                 -> EvalResult
             {   // Get the virtual address from the scalar.
-                auto vaddr = expression.template evaluate<std::uintptr_t>();
+                auto vaddr = expression.evaluate<std::uintptr_t>();
 
                 // Get the physical address from the virtual address.
                 auto paddr_result = teb.peb().mem().translate(vaddr);
@@ -77,7 +77,7 @@ namespace mint
                 };
 
                 // Get the data from the physical address.
-                std::byte* data_ptr = reinterpret_cast<std::byte*>(*paddr_result);
+                auto data_ptr = reinterpret_cast<std::byte*>(*paddr_result);
 
                 return Scalar
                 {{  // Use the bitness provided by traits to get the correct size.
@@ -86,10 +86,10 @@ namespace mint
             },
         };
 
-        auto evaluate(Teb& teb)
+        template<cpu::Initializer Initializer> auto evaluate(Teb& teb)
             -> EvalResult
         {   // Get the source function for the traits of the operand.
-            auto& source_funct = source_map[static_cast<std::size_t>(this->traits.sources)];
+            auto& source_funct = source_map<Initializer>[static_cast<std::size_t>(this->traits.sources)];
 
             // Return the evaluated result from the source function.
             return std::invoke(source_funct, this->traits, this->expression, teb);

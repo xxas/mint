@@ -25,6 +25,7 @@ target_sources(
     fnv1a.cppm
     multiarray.cppm
     bmultimap.cppm
+    bmap.cppm
 )
 
 target_link_libraries(xxas PRIVATE m)

@@ -39,6 +39,9 @@ target_sources(
     instruction.cppm
 
     binding.cppm
+
+    jit_compiler.cppm
+    interpreter.cppm
 )
 
 target_link_libraries(mint PRIVATE m)

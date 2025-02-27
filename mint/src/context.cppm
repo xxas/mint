@@ -38,10 +38,10 @@ namespace mint
             return this->mem_ref.get();
         };
 
-        auto thread_file(const std::size_t& thread_id)
+        template<const cpu::Initializer Initializer> auto thread_file(const std::size_t& thread_id)
             -> ThreadFileRef
         {   // Return a std::reference_wrapper of the ThreadFile.
-            return std::ref(this->cpu_ref.get().try_init(thread_id));
+            return std::ref(this->cpu_ref.get().try_init<Initializer>(thread_id));
         };
     };
  
@@ -68,10 +68,10 @@ namespace mint
             return this->peb_ref.get();
         };
 
-        auto thread_file()
+        template<const cpu::Initializer Initializer> auto thread_file()
             -> ThreadFileRef
         {   // Get the thread file for the current thread id.
-            return this->peb().thread_file(this->thread_id);
+            return this->peb().thread_file<Initializer>(this->thread_id);
         };
 
         auto stackframe()

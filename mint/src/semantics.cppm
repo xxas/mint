@@ -2,7 +2,6 @@ export module mint: semantics;
 
 import std;
 import xxas;
-
 import :traits;
 
 /*** **

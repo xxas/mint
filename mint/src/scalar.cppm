@@ -2,7 +2,6 @@ export module mint: scalar;
 
 import std;
 import xxas;
-
 import :traits;
 
 /*** **

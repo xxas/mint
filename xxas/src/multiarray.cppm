@@ -3,8 +3,7 @@ export module xxas: multiarray;
 import std;
 
 namespace xxas
-{
-    // Contiguous array.
+{   // Contiguous array.
     // data types of `class T`; total size of `std::size_t N`; Array count of `C`; Discriminator data type of `D`.
     export template<class T, std::size_t N, std::size_t C, class D> struct MultiArray
     {

@@ -7,3 +7,4 @@ export import :tests;
 export import :fnv1a;
 export import :multiarray;
 export import :bmultimap;
+export import :bmap;
