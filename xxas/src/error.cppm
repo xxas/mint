@@ -7,7 +7,7 @@ namespace xxas
 {   // Simple error, and error propagating container.
     export template<class En = std::uint8_t, class... From> struct Error
     {   // Drain previous possible error types into a single variant.
-        using Enum = meta::DrainAll_t<std::variant<En>, typename From::Enum...>;
+        using Enum = meta::DedupExtend_t<std::variant<En>, meta::Template<typename From::Enum...>>;
 
         Enum        type;
         std::string message;
