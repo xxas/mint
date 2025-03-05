@@ -20,7 +20,7 @@ namespace xxas
 
         template<auto V, class T = decltype(V)> struct Value
         {
-            using ValueType = decltype(V);
+            using ValueType = T; 
             constexpr auto value() const
                 -> ValueType
             {
@@ -68,12 +68,25 @@ namespace xxas
         {
             using Container<false, Ts...>::size;
             using Container<false, Ts...>::is_container;
+
+            template<class... Es> constexpr auto operator==(Template<Es...>) const noexcept
+                -> bool
+            {
+                return std::same_as<Template<Ts...>, Template<Es...>>;
+            };
+
         };
 
         template<class T> struct Template<T>
           : TypeIdentity<T>, Container<false>
         {
             using Container<false>::is_container;
+
+            template<class... Es> constexpr auto operator==(Template<Es...>) const noexcept
+                -> bool
+            {
+                return std::same_as<Template<T>, Template<Es...>>;
+            };
         };
 
         template<template<class...> class C, class... Ts> struct Template<C<Ts...>>
@@ -84,26 +97,22 @@ namespace xxas
             using Container<true, Ts...>::size;
             using Container<true, Ts...>::is_container;
 
-            // Provided an empty container, returns the current template.
-            constexpr auto dedup_extend(Template<C<>>) const noexcept
+            // Provided an empty type, returns the current template.
+            template<class E> constexpr auto dedup_extend(E) const noexcept
+                requires meta::same_as<E, Template<>, Template<C<>>>
             {
                 return *this;
             };
 
-            constexpr auto dedup_extend(Template<>) const noexcept
-            {
-                return *this;
-            };
-
-            // If `E` is not a duplicate type, returns an extended template for `Container<Ts...>`.
+            // If `E` is not a duplicate type, returns an extended template for `C<Ts..., E>`, otherwise returns `C<Ts...>`.
             template<class E> constexpr auto dedup_extend(Template<E>) const noexcept
             {
                 return std::conditional_t<meta::same_as<E, Ts...>, Template<C<Ts...>>, Extend<E>>{};
             };
 
-            // Recursively extends the template types for `Container<Ts...>` with types from `EContainer<E, Es...>` that are not duplicates.
+            // Recursively extends the template types for `C<Ts...>` with types from `OC<E, Es...>` that are not duplicates.
             template<template<class...> class OC, class E, class... Es> constexpr auto dedup_extend(Template<OC<E, Es...>>) const noexcept
-                requires(meta::same_as<OC<E, Es...>, C<E, Es...>, Template<E, Es...>>)
+                requires meta::same_as<OC<E, Es...>, C<E, Es...>, Template<E, Es...>>
             {
                 return this->dedup_extend(Template<E>{}).dedup_extend(Template<Es...>{});
             };
@@ -115,13 +124,14 @@ namespace xxas
             };
         };
 
-        // 
+        // .
         template<class T> concept container = Template<T>{}.is_container();
 
         // Extends the template types of container `T` by the template types of container `U`.
         template<container T, class U> using DedupExtend   = decltype(Template<T>{}.dedup_extend(Template<U>{}));
         template<container T, class U> using DedupExtend_t = typename DedupExtend<T, U>::Type;
 
+        // Index access to a specific element in a template/container.
         template<container T, auto I> using Element   = decltype(Template<T>{}.type_at(Value<I>{}));
         template<container T, auto I> using Element_t = typename Element<T, I>::Type;
     };
