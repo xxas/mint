@@ -18,7 +18,7 @@ namespace mint
 {
     struct JitCompiler
     {
-        enum CompilationErrs: std::uint8_t
+        enum CompilationErr: std::uint8_t
         {
             Empty, Missing,
         };
@@ -29,8 +29,7 @@ namespace mint
         // Jit compiler output bindings.
         using Output = std::vector<Binding>;
 
-        using CompilationErr    = xxas::Error<CompilationErrs, Operand::EvalErr>;
-        using CompilationResult = std::expected<Output, CompilationErr>;
+        using CompilationResult = xxas::Result<Output, CompilationErr>;
 
         // Just-in-time compiles loose instruction information into direct function calls for a thread.
         template<xxas::BMap Opcodes, cpu::Initializer Initializer> constexpr static auto from(Input& input, Teb& teb)
@@ -38,7 +37,7 @@ namespace mint
         {
             if(input.empty())
             {
-                return CompilationErr::err(CompilationErrs::Empty, "Not enough instructions to preform JIT compilation");
+                return xxas::error(CompilationErr::Empty, "Not enough instructions to preform JIT compilation");
             };
 
             // JIT output bindings.
@@ -54,7 +53,7 @@ namespace mint
                 {   // Check if any operands failed to evaluate.
                     if(!result)
                     {
-                        return CompilationErr::from(result);
+                        return result.error();
                     };
                 };
 
@@ -71,7 +70,7 @@ namespace mint
 
                 if(funct == std::nullopt)
                 {
-                    return CompilationErr::err(CompilationErrs::Missing, std::format("Cannot find a matching function for opcode: {}", insn.opcode));
+                    return xxas::error(CompilationErr::Missing, std::format("Cannot find a matching function for opcode: {}", insn.opcode));
                 };
 
                 // Bind to the function.

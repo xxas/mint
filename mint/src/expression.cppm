@@ -133,20 +133,19 @@ namespace mint
             });
         };
 
-        enum class ParseErrs : std::uint8_t
+        enum class ParseErr : std::uint8_t
         {
             Empty,
         };
 
-        using ParseErr    = xxas::Error<ParseErrs>;
-        using ParseResult = std::expected<Expression, ParseErr>;
+        using ParseResult = xxas::Result<Expression, ParseErr>;
 
         static auto parse(const Tokens& tokens)
             -> ParseResult
         {
             if (tokens.empty())
             {
-                return ParseErr::err(ParseErrs::Empty, "Expression was passed an empty range of tokens");
+                return xxas::error(ParseErr::Empty, "Expression was passed an empty range of tokens");
             };
 
             auto get_precedence = [](Operator type)

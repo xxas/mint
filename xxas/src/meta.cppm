@@ -20,7 +20,7 @@ namespace xxas
 
         template<auto V, class T = decltype(V)> struct Value
         {
-            using ValueType = T; 
+            using ValueType = T;
             constexpr auto value() const
                 -> ValueType
             {
@@ -74,11 +74,10 @@ namespace xxas
             {
                 return std::same_as<Template<Ts...>, Template<Es...>>;
             };
-
         };
 
         template<class T> struct Template<T>
-          : TypeIdentity<T>, Container<false>
+            : TypeIdentity<T>, Container<false>
         {
             using Container<false>::is_container;
 
@@ -124,12 +123,12 @@ namespace xxas
             };
         };
 
-        // .
+        // Defines a concept that describes a type that include a variadic template of hetereogenous types.
         template<class T> concept container = Template<T>{}.is_container();
 
         // Extends the template types of container `T` by the template types of container `U`.
-        template<container T, class U> using DedupExtend   = decltype(Template<T>{}.dedup_extend(Template<U>{}));
-        template<container T, class U> using DedupExtend_t = typename DedupExtend<T, U>::Type;
+        template<container T, class... U> using DedupExtend   = decltype(Template<T>{}.dedup_extend(Template<U...>{}));
+        template<container T, class... U> using DedupExtend_t = typename DedupExtend<T, U...>::Type;
 
         // Index access to a specific element in a template/container.
         template<container T, auto I> using Element   = decltype(Template<T>{}.type_at(Value<I>{}));

@@ -23,22 +23,21 @@ namespace mint
         Expression expression;
         Traits     traits;
 
-        enum class EvalErrs: std::uint8_t
+        enum class EvalErr: std::uint8_t
         {
             Uninitialized,
             Casting,
             Nonconstant,
         };
 
-        using EvalErr      = xxas::Error<EvalErrs, Memory::MemErr>;
-        using EvalResult   = std::expected<Scalar, EvalErr>;
+        using EvalResult   = xxas::Result<Scalar, EvalErr, Memory::MemErr>;
 
         template<cpu::Initializer Initializer> constexpr static inline std::array source_map
         {   // Register from scalar.
             +[](Traits& _, const Expression& expression, Teb& teb)
                 -> EvalResult
             {   // Get the register id from the scalar.
-                auto regid = expression.template evaluate<std::size_t>();
+                auto regid = expression.evaluate<std::size_t>();
 
                 // Get the cpu thread file through TEB.
                 auto thread_file = teb.thread_file<Initializer>();
@@ -60,7 +59,7 @@ namespace mint
                 {
                     return scalar;
                 })
-                .value_or(EvalErr::err(EvalErrs::Nonconstant, "Immediate value expects a constant expression"));
+                .value_or(xxas::error(EvalErr::Nonconstant, "Immediate value expects a constant expression"));
             },
             // Memory address from scalar.
             +[](Traits& traits, const Expression& expression, Teb& teb)
@@ -73,7 +72,7 @@ namespace mint
 
                 if(!paddr_result)
                 {
-                    return EvalErr::from(paddr_result);
+                    return paddr_result.error();
                 };
 
                 // Get the data from the physical address.

@@ -33,6 +33,7 @@ target_sources(
     # Traits and semantics systems.
     traits.cppm
     semantics.cppm
+    arch.cppm
 
     expression.cppm
     operand.cppm

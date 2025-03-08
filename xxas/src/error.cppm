@@ -5,58 +5,113 @@ import :meta;
 
 namespace xxas
 {   // Simple error, and error propagating container.
-    export template<class En = std::uint8_t, class... From> struct Error
+    export template<class Err = std::uint8_t, class... Errs> struct Error
     {   // Drain previous possible error types into a single variant.
-        using Enum = meta::DedupExtend_t<std::variant<En>, meta::Template<typename From::Enum...>>;
+        using Enum = meta::DedupExtend_t<std::variant<Err>, Errs...>;
 
-        Enum        type;
-        std::string message;
+        Enum        type{};
+        std::string message{};
 
-        // Construct from a previous error.
-        template<class E> constexpr Error(E& err) requires(std::same_as<E, From> || ...)
+        constexpr Error(meta::same_as<Err, Errs...> auto&& type, std::string&& message) noexcept
+            : type{std::move(type)}, message{std::move(message)} {};
+
+        constexpr Error(std::string&& message)
+            : type{}, message{std::move(message)} {};
+
+        template<class... From> explicit constexpr Error(Error<From...>&& from) noexcept
+            : message{std::move(from.message)}
         {
-            err.type.visit([&](auto& type)
+            constexpr auto default_initialize = [](auto&&...) noexcept
             {
-                this->type = Enum(type);
+                return Enum{};
+            };
+
+            constexpr auto move_initialize = [](auto&& type) noexcept
+            {
+                return std::move(type);
+            };
+
+            this->type = from.type.visit(meta::Overloads
+            {
+                default_initialize, move_initialize,
             });
- 
-            this->message = err.message;
         };
- 
-        // Construct from current error type.
-        constexpr Error(En t, std::string_view str)
-            : type{ t }, message{ str } {};
- 
-        // Construct from an std::expected error.
-        template<class R, class E> constexpr static auto from(const std::expected<R, E>& e)
-            -> std::unexpected<Error>
-            requires(std::same_as<E, Error> || (std::same_as<E, From> || ...))
+    };
+
+    export template<class T> auto error(T&& type, std::string&& message)
+        -> Error<T>
+    {
+        return Error<T>{std::move(type), std::move(message)};
+    };
+
+    export template<class T, class... Errs> struct Result: std::expected<T, Error<Errs...>>
+    {
+        using Base  = std::expected<T, Error<Errs...>>;
+        using Type  = T;
+        using Err   = Error<Errs...>;
+        using Base::Base;
+
+        // Construction from std::expected<T, Error>.
+        constexpr Result(const Base& other) noexcept : Base(other) {};
+        constexpr Result(Base&& other) noexcept      : Base(std::move(other)) {};
+
+        // Construction from alternative error types.
+        template<class... From> constexpr Result(const Error<From...>& err) noexcept : Base(std::unexpected(err)) {};
+        template<class... From> constexpr Result(Error<From...>&& err) noexcept      : Base(std::unexpected(std::move(err))) {};
+
+        template<std::invocable<T> F> constexpr auto and_then(F&& funct)
+            -> Result<std::invoke_result_t<F, T>, Errs...>
         {
-            auto err = e.error();
-            return std::unexpected(Error(err));
+            if(!*this)
+            {
+                return std::unexpected(this->error());
+            };
+
+
+            if constexpr(std::same_as<std::invoke_result_t<F, T>, void>)
+            {
+                std::invoke(std::forward<F>(funct), this->value());
+                return {};
+            }
+            else
+            {
+                auto result = std::invoke(std::forward<F>(funct), this->value());
+                return result;
+            };
         };
- 
-        // Returns an std::unexpected error.
-        constexpr static auto err(En type, std::string_view view)
+
+        template<std::invocable F> constexpr auto and_then(F&& funct)
+            -> Result<void, Errs...>
         {
-            return std::unexpected(Error(type, view));
-        };
- 
-        constexpr static auto err(std::string_view view)
-        {
-            return std::unexpected(Error(0, view));
+            if(!*this)
+            {
+                return std::unexpected(this->error());
+            };
+
+
+            if constexpr(std::same_as<std::invoke_result_t<F>, void>)
+            {
+                std::invoke(std::forward<F>(funct));
+                return {};
+            }
+            else
+            {
+                auto result = std::invoke(std::forward<F>(funct));
+                return result;
+            };
         };
     };
 };
 
-// mylir::Error formatting.
+// mint::Error formatting.
 template<class En, class... From>
 struct std::formatter<xxas::Error<En, From...>>
 {
     constexpr formatter() = default;
     constexpr formatter(const formatter&) = default;
 
-    constexpr auto parse(std::format_parse_context& ctx) -> decltype(ctx.begin())
+    constexpr auto parse(std::format_parse_context& ctx)
+        -> decltype(ctx.begin())
     {
         auto it = ctx.begin();
 

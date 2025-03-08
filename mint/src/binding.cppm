@@ -18,21 +18,19 @@ namespace mint
 {
     export struct Binding
     {
-        enum class CreateErrs: std::uint8_t
+        enum class CreateErr: std::uint8_t
         {
             BytesLen,
         };
 
-        using CreateErr     = xxas::Error<CreateErrs>;
-        using CreateResult  = std::expected<Binding, CreateErr>;
+        using CreateResult  = xxas::Result<Binding, CreateErr>;
 
-        enum class FunctErrs: std::uint8_t
+        enum class FunctErr: std::uint8_t
         {
             Invocation,
         };
 
-        using FunctErr      = xxas::Error<FunctErrs>;
-        using FunctResult   = std::expected<std::void_t<>, FunctErr>;
+        using FunctResult   = xxas::Result<void, FunctErr>;
 
         template<class... Args> using FunctionFor = std::function<FunctResult(Args...)>;
         using Function                            = FunctionFor<>;
@@ -44,7 +42,7 @@ namespace mint
         {
             if (!this->function) [[unlikely]]
             {
-                return FunctErr::err(FunctErrs::Invocation, "Function is not set");
+                return xxas::error(FunctErr::Invocation, "Function is not set");
             };
 
             return std::invoke(this->function, std::forward<Args>(args)...);
@@ -59,7 +57,7 @@ namespace mint
                 std::size_t types_size   = (0uz + ... + sizeof(Args));
                 auto typename_str        = xxas::format::demangled_typename<std::tuple<Args...>>();
 
-                return CreateErr::err(CreateErrs::BytesLen, std::format("Not enough data ({} bytes) provided for {} ({}bytes)", spans.size(), typename_str, types_size));
+                return xxas::error(CreateErr::BytesLen, std::format("Not enough data ({} bytes) provided for {} ({}bytes)", spans.size(), typename_str, types_size));
             };
 
             auto check_alignment = [&]<auto... In>(std::index_sequence<In...>)
@@ -68,9 +66,10 @@ namespace mint
                 return ((reinterpret_cast<std::uintptr_t>(spans.at(In).data()) % alignof(Args) == 0) && ...);
             };
 
-            if (!check_alignment(std::index_sequence_for<Args...>{}))
+            if(!check_alignment(std::index_sequence_for<Args...>{}))
             {
-                return CreateErr::err(CreateErrs::BytesLen, "Memory spans are not properly aligned for argument types.");
+
+                return xxas::error(CreateErr::BytesLen, "Memory spans are not properly aligned for argument types.");
             };
 
             auto get_tuple_refs = [&]<auto... In>(std::index_sequence<In...>)
@@ -87,7 +86,7 @@ namespace mint
 
             return Binding
             {    // Capture the original function as a reference and the arguments moved into the function.
-                .function = [funct = std::ref(funct), args = std::move(arg_refs)]()
+                .function = [funct = std::ref(funct), args = std::move(arg_refs)]
                     -> FunctResult
                 {   // Unpack the arguments and perfectly forward them to the function.
                     return std::apply([&funct](auto&&... unpacked_args)

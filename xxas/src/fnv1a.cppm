@@ -14,8 +14,7 @@ namespace xxas
         constexpr static inline Parameters Offsets = { 0x811c9dc5, 0xcbf29ce484222325 };
     };
 
-    export template<class H> requires(std::same_as<H, std::uint64_t> ||
-        std::same_as<H, std::uint32_t>) struct Fnv1a
+    export template<class H> requires(meta::same_as<H, std::uint64_t, std::uint32_t>) struct Fnv1a
     {
         using ValueType = H;
 
@@ -37,9 +36,8 @@ namespace xxas
         template <std::ranges::range R> constexpr auto operator()(const R& range) const
           -> const ValueType
         {
-            static_assert(std::is_integral_v<std::ranges::range_value_t<R>> ||
-                            std::is_same_v<std::ranges::range_value_t<R>, char>,
-                            "Hashing is only supported for ranges of integral or character types.");
+            static_assert(std::is_integral_v<std::ranges::range_value_t<R>> || std::is_same_v<std::ranges::range_value_t<R>, char>,
+                          "Hashing is only supported for ranges of integral or character types.");
 
             ValueType hash = Offset;
 

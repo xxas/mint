@@ -31,15 +31,14 @@ namespace mint
         // Stack size.
         std::size_t size;
 
-        enum class StackErrs : std::uint8_t
+        enum class StackErr: std::uint8_t
         {
             Address,
             Overflow,
             Underflow,
         };
 
-        using StackErr   = xxas::Error<StackErrs, Memory::MemErr>;
-        template<class T = std::void_t<>> using StackResult = std::expected<T, StackErr>;
+        template<class T = std::void_t<>> using StackResult = xxas::Result<T, StackErr, Memory::MemErr>;
 
         StackFrame(std::size_t vaddr, std::size_t size)
             : sp(vaddr + size), bp(sp), vaddr(vaddr), size(size) {};
@@ -57,7 +56,7 @@ namespace mint
         {
             if (data.size() > sp - vaddr)
             {
-                return StackErr::err(StackErrs::Overflow, "Stack overflow: Not enough space to push data.");
+                return xxas::error(StackErr::Overflow, "Stack overflow: Not enough space to push data.");
             };
 
             this->sp -= data.size();
@@ -65,7 +64,7 @@ namespace mint
             auto result = mem.translate(sp);
             if(!result)
             {
-                return StackErr::from(result);
+                return result.error();
             };
 
             auto paddr = *result;
@@ -81,13 +80,13 @@ namespace mint
         {
             if (this->sp + data.size() > this->vaddr + this->size)
             {
-                return StackErr::err(StackErrs::Underflow, "Stack underflow: Attempted to pop beyond allocated stack.");
+                return xxas::error(StackErr::Underflow, "Stack underflow: Attempted to pop beyond allocated stack.");
             }
 
             auto result = mem.translate(sp);
             if(!result)
             {
-                return StackErr::from(result);
+                return result.error();
             };
 
             auto paddr = *result;
@@ -123,7 +122,7 @@ namespace mint
             // Check stack underflow
             if (this->sp + sizeof(T) > this->vaddr + this->size)
             {
-                return StackErr::err(StackErrs::Underflow, "Stack underflow: Attempted to pop beyond allocated stack.");
+                return xxas::error(StackErr::Underflow, "Stack underflow: Attempted to pop beyond allocated stack.");
             };
 
             T value{};
@@ -135,22 +134,19 @@ namespace mint
             auto result = this->pop_bytes(mem, data);
             if (!result)
             {
-                return StackErr::err(StackErrs::Address, "Failed to pop data from the stack.");
+                return xxas::error(StackErr::Address, "Failed to pop data from the stack.");
             };
 
             return value;
         };
 
-        // Function prologue: save caller's state
+        // Function prologue: save caller's state.
         auto function_prologue(Memory& mem)
             -> StackResult<>
         {   // Save previous base pointer.
-            return push(mem, this->bp)
-                .and_then([this, &mem]()
-                    -> StackResult<>
+            return this->push(mem, this->bp).and_then([this, &mem]
                 {   // Update base pointer.
                     this->bp = this->sp;
-                    return {};
                 });
         };
 
@@ -160,12 +156,9 @@ namespace mint
         {   // Reset stack pointer.
             this->sp = this->bp;
 
-            return pop<std::size_t>(mem)
-              .and_then([this](std::size_t old_bp)
-                  -> StackResult<>
+            return this->pop<std::size_t>(mem).and_then([this](std::size_t old_bp)
               {   // Restore previous base pointer.
                   this->bp = old_bp;
-                  return {};
               });
         };
     };

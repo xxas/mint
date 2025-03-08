@@ -61,13 +61,12 @@ namespace mint
         std::size_t              page_len = mem::default_page_size;
         std::mutex               mem_mutex;
 
-        enum class MemErrs: std::uint8_t
+        enum class MemErr: std::uint8_t
         {
             Alloc, VAddr, Stack, Access
         };
 
-        using MemErr                      = xxas::Error<MemErrs>;
-        template<class T> using MemResult = std::expected<T, MemErr>;
+        template<class T> using MemResult = xxas::Result<T, MemErr>;
 
         // Align a virtual address to page boundaries.
         constexpr auto align(std::size_t virtual_addr) const noexcept
@@ -82,7 +81,7 @@ namespace mint
         {
             if(size == 0uz)
             {
-                return MemErr::err(MemErrs::Alloc, "Invalid allocation: size must be nonzero.");
+                return xxas::error(MemErr::Alloc, "Invalid allocation: size must be nonzero.");
             }
 
             size = this->align(size);
@@ -111,13 +110,13 @@ namespace mint
             auto it = this->vmap.find(vaddr_base);
             if (it == this->vmap.end())
             {
-                return MemErr::err(MemErrs::VAddr, "Invalid virtual address.");
+                return xxas::error(MemErr::VAddr, "Invalid virtual address.");
             }
 
             std::size_t offset = vaddr - vaddr_base;
             if (offset >= it->second.size)
             {
-                return MemErr::err(MemErrs::VAddr, "Address out of bounds.");
+                return xxas::error(MemErr::VAddr, "Address out of bounds.");
             }
 
             return it->second.paddr + offset;
@@ -125,14 +124,14 @@ namespace mint
 
         // Read from virtual address and size.
         auto read(std::size_t vaddr, std::size_t size)
-            -> std::expected<std::span<std::byte>, MemErr>
+            -> MemResult<std::span<std::byte>>
         {
             std::scoped_lock lock(mem_mutex);
 
             auto result = this->translate(vaddr);
             if (!result)
             {
-                return MemErr::from(result);
+                return result.error();
             };
 
             auto paddr = *result;
@@ -140,7 +139,7 @@ namespace mint
             auto region_it = vmap.find(align(vaddr));
             if (region_it == vmap.end() || (region_it->second.flags & mem::Protection::Readable))
             {
-                return MemErr::err(MemErrs::Access, "Memory read access denied.");
+                return xxas::error(MemErr::Access, "Memory read access denied.");
             };
 
             return std::span<std::byte>
@@ -151,14 +150,14 @@ namespace mint
 
         // Write memory from a span
         auto write(std::size_t vaddr, std::span<const std::byte> bytes)
-            -> std::expected<void, MemErr>
+            -> MemResult<void>
         {
             std::scoped_lock lock(mem_mutex);
 
             auto result = this->translate(vaddr);
             if (!result)
             {
-                return MemErr::from(result);
+                return result.error();
             }
 
             auto paddr = *result;
@@ -166,7 +165,7 @@ namespace mint
             auto region_it = vmap.find(align(vaddr));
             if (region_it == vmap.end() || !(region_it->second.flags & mem::Protection::Writtable))
             {
-                return MemErr::err(MemErrs::Access, "Memory write access denied.");
+                return xxas::error(MemErr::Access, "Memory write access denied.");
             }
 
             std::memcpy(&this->pmem[paddr], bytes.data(), bytes.size());

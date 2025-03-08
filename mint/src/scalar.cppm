@@ -13,7 +13,6 @@ import :traits;
 
 namespace mint
 {
-
     export struct Scalar
     {
         using Bytes = std::span<std::byte>;
