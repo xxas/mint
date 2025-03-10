@@ -6,7 +6,7 @@ namespace mint_test
 {
     using namespace mint;
 
-    constexpr void bindings()
+    constexpr void tied_invocation()
     {
         std::uint32_t ui32 = 100;
         std::string   str8 = "hello world!";
@@ -49,13 +49,13 @@ namespace mint_test
         xxas::assert_eq(fl32, std::numbers::egamma_v<float>);
     };
 
-    constexpr inline xxas::Tests execution
+    constexpr inline xxas::Tests bindings
     {
-        bindings,
+        tied_invocation,
     };
 };
 
 int main()
 {
-    return mint_test::execution();
+    return mint_test::bindings();
 };

@@ -6,6 +6,7 @@ import xxas;
 import :memory;
 import :cpu;
 import :stackframe;
+import :arch;
 
 /*** **
  **
@@ -24,7 +25,7 @@ namespace mint
         CpuRef cpu_ref;
         MemRef mem_ref;
 
-        using ThreadFileRef = std::reference_wrapper<cpu::ThreadFile>;
+        using ThreadFileRef = std::reference_wrapper<arch::ThreadFile>;
 
         auto cpu()
             -> Cpu&
@@ -38,10 +39,10 @@ namespace mint
             return this->mem_ref.get();
         };
 
-        template<const cpu::Initializer Initializer> auto thread_file(const std::size_t& thread_id)
+        template<const arch::RegInit Init> auto thread_file(const std::size_t& thread_id)
             -> ThreadFileRef
         {   // Return a std::reference_wrapper of the ThreadFile.
-            return std::ref(this->cpu_ref.get().try_init<Initializer>(thread_id));
+            return std::ref(this->cpu_ref.get().try_init<Init>(thread_id));
         };
     };
  
@@ -68,10 +69,10 @@ namespace mint
             return this->peb_ref.get();
         };
 
-        template<const cpu::Initializer Initializer> auto thread_file()
+        template<const arch::RegInit Init> auto thread_file()
             -> ThreadFileRef
         {   // Get the thread file for the current thread id.
-            return this->peb().thread_file<Initializer>(this->thread_id);
+            return this->peb().thread_file<Init>(this->thread_id);
         };
 
         auto stackframe()

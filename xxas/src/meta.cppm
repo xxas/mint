@@ -61,6 +61,14 @@ namespace xxas
                 static_assert(sizeof...(Ts) > Index, "Index out of bounds");
                 return TypeIdentity<Ts...[Index]>{};
             };
+
+            // Returns the index of a type if found within the container.
+            template<class E, std::size_t Index = 0uz> constexpr auto index_of(TypeIdentity<E>) const noexcept
+                -> std::size_t
+            {
+                static_assert(sizeof...(Ts) > Index, "Index out of bounds");
+                return std::same_as<E, Ts...[Index]> ? Index : this->index_of<E, Index + 1>(TypeIdentity<E>{});
+            };
         };
 
         template<class... Ts> struct Template
@@ -133,5 +141,8 @@ namespace xxas
         // Index access to a specific element in a template/container.
         template<container T, auto I> using Element   = decltype(Template<T>{}.type_at(Value<I>{}));
         template<container T, auto I> using Element_t = typename Element<T, I>::Type;
+
+        // Returns the index of a type within a template container.
+        template<container T, class U, std::integral auto In = 0uz> constexpr inline std::size_t index_of = Template<T>{}.index_of<U, In>();
     };
 };

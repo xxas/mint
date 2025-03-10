@@ -14,8 +14,7 @@ import :traits;
 namespace mint
 {
     namespace semantics
-    {
-        // Traits that a set of data should follow.
+    {   // Traits that a set of data should follow.
         export struct Guide
         {
             enum class Format: std::uint8_t

@@ -6,11 +6,13 @@ import :operand;
 import :instruction;
 import :binding;
 import :context;
+import :arch;
 
 /*** **
  **
  **  module:   mint: jit_compiler
- **  purpose:  Transforms IR into direct function calls at runtime.
+ **  purpose:  Transforms high-level instruction IR into
+ **            directly executable functional bindings.
  **
  *** **/
 
@@ -32,7 +34,7 @@ namespace mint
         using CompilationResult = xxas::Result<Output, CompilationErr>;
 
         // Just-in-time compiles loose instruction information into direct function calls for a thread.
-        template<xxas::BMap Opcodes, cpu::Initializer Initializer> constexpr static auto from(Input& input, Teb& teb)
+        template<Arch Arch> constexpr static auto from(Input& input, Teb& teb)
             -> CompilationResult
         {
             if(input.empty())
@@ -46,7 +48,7 @@ namespace mint
             {   // Evaluate each operand.
                 auto results = std::ranges::transform(insn.operands, [&](Operand& operand)
                 {
-                    return operand.evaluate<Initializer>(teb);
+                    return operand.evaluate<Arch.reg_initializer>(teb);
                 });
 
                 for(auto& result: results)
@@ -66,7 +68,7 @@ namespace mint
                 });
 
                 // Get the function for the opcode.
-                auto& funct  = Opcodes.find(static_cast<std::size_t>(insn.opcode));
+                auto& funct  = Arch.insns.find(static_cast<std::size_t>(insn.opcode));
 
                 if(funct == std::nullopt)
                 {
@@ -79,7 +81,6 @@ namespace mint
                     return Binding::create(opcode_funct, scalars);
                 });
             };
-
             // Return our built functions.
             return output;
         };

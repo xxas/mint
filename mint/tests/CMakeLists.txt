@@ -11,8 +11,6 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 function(add_mint_test name)
-    message(STATUS "Adding test: ${name}")  # Debug message
-
     # Create the test executable.
     add_executable(test_${name} ${name}.cppm)
 
@@ -30,3 +28,4 @@ enable_testing()
 add_mint_test(semantics)
 add_mint_test(binding)
 add_mint_test(expression)
+add_mint_test(arch)

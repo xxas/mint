@@ -10,6 +10,7 @@ export import :scalar;
 
 export import :traits;
 export import :semantics;
+export import :arch;
 
 export import :expression;
 

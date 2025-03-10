@@ -73,17 +73,15 @@ namespace xxas
             std::invoke([&]<auto... In>(std::index_sequence<In...>)
             {
                 this->keys =
-                {   // Hash of each key; and
-                    // the original index of each key.
+                {   // Hash of each key, and the original index of each key.
                     std::pair
                     {
                         Hasher::hash(std::get<0>(entries...[In])), In
                     }...
                 };
 
-                // Sort the keys by size for optimized binary searching.
                 std::ranges::sort(this->keys, [](const KeyPair& first, const KeyPair& second)
-                {
+                {   // Sort the keys by size for optimized binary searching.
                     return first.first < second.first;
                 });
 

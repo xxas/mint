@@ -81,7 +81,7 @@ namespace xxas
         };
 
         template<std::invocable F> constexpr auto and_then(F&& funct)
-            -> Result<void, Errs...>
+            -> Result<std::invoke_result_t<F>, Errs...>
         {
             if(!*this)
             {
