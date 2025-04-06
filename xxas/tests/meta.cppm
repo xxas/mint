@@ -39,9 +39,35 @@ namespace xxas_tests
         xxas::assert_eq(EF_2{}, meta::Template<short>{});
     };
 
+    constexpr auto forward_alike()
+    {
+        std::tuple floats_ints = {3.1415, 1u, 2u, 3u, 6, 9, 89.0f, 130.0515f};
+        auto      accumulate = [](auto&&... ints)
+        {
+            return (0 + ... + ints);
+        };
+
+        // Accumulate all integer types together.
+        auto sums_0 = meta::apply_alike<unsigned int, int>(accumulate, std::forward<decltype(floats_ints)>(floats_ints));
+        xxas::assert_eq(sums_0, 1u + 2u + 3u + 6 + 9);
+
+        // Accumulate all floating point types together.
+        auto sums_1 = meta::apply_alike<double, float>(accumulate, std::forward<decltype(floats_ints)>(floats_ints));
+        xxas::assert_eq(sums_1, 3.1415 + 89.0f + 130.0515f);
+
+        std::tuple floats_flags = {0.15f, 0b11000000, 0b00001111, 0b00110000, 3.1415f};
+        auto bit_or = [](auto&&... bits)
+        {
+            return (... | bits);
+        };
+
+        auto bits = meta::apply_alike<int>(bit_or, std::forward<decltype(floats_flags)>(floats_flags));
+        xxas::assert_eq(bits, 0b11111111);
+    };
+
     constexpr xxas::Tests meta
     {
-        dedup_extends,
+        dedup_extends, forward_alike
     };
 };
 

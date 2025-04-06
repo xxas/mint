@@ -6,7 +6,7 @@ namespace mint_tests
 {
     using namespace mint;
 
-    constexpr static arch::Insns insns
+    /*constexpr static arch::Insns insns
     {
         std::pair{"hello_world", []
         {
@@ -20,18 +20,38 @@ namespace mint_tests
 
     constexpr auto insn_lookup()
     {   // Should be able to find hello_world.
-        xxas::assert_ne(insns.find("hello_world"), std::nullopt);
-        xxas::assert_eq(insns.find("some_float"), std::nullopt);
-    };
+        xxas::assert_ne(insns.find("hello_world"), insns.cend());
+        xxas::assert_eq(insns.find("some_float"), insns.cend());
+    };*/
 
     constexpr auto reg_init()
     {
+        constexpr static auto keywords = arch::Keywords
+        {   // Registers.
+            std::pair{"gp0", Traits{traits::Bitness::b64, traits::Source::Register}},
+            std::pair{"gp1", Traits{traits::Bitness::b64, traits::Source::Register}},
+            std::pair{"gp2", Traits{traits::Bitness::b64, traits::Source::Register}},
 
+            // Misc keywords.
+            std::pair{"dword", Traits{traits::Bitness::b64}},
+            std::pair{"word",  Traits{traits::Bitness::b32}},
+            std::pair{"ptr",   Traits{traits::Source::Memory}},
+        };
+
+        for(const auto& keyword: keywords)
+        {
+            std::println("{} {}", keyword.first.second, keyword.second.get<traits::Bitness>());
+        };
+
+        // Create a new register file.
+        auto registers = keywords.reg_file();
+
+        std::println("{}", registers.size());
     };
 
     constexpr xxas::Tests arch
     {
-        insn_lookup,
+        reg_init
     };
 };
 

@@ -87,14 +87,9 @@ namespace mint
 
         NodePtr root;
 
-        explicit Expression(Leaf&& leaf)
-            : root(std::make_unique<Node>(std::move(leaf))) {};
-
-        explicit Expression(Branch&& branch)
-            : root(std::make_unique<Node>(std::move(branch))) {};
-
-        explicit Expression(NodePtr&& node)
-            : root(std::move(node)) {};
+        explicit Expression(Leaf&& leaf)     : root(std::make_unique<Node>(std::move(leaf))) {};
+        explicit Expression(Branch&& branch) : root(std::make_unique<Node>(std::move(branch))) {};
+        explicit Expression(NodePtr&& node)  : root(std::move(node)) {};
 
          constexpr auto constant() const
             -> std::optional<Leaf>
@@ -182,12 +177,10 @@ namespace mint
                     auto right = std::move(nodes.back()); nodes.pop_back();
                     auto left  = std::move(nodes.back()); nodes.pop_back();
 
-                    nodes.push_back(std::make_unique<Node>(
-                          Branch
-                          {
-                              operators.back(), std::move(left), std::move(right)
-                          }
-                    ));
+                    nodes.push_back(std::make_unique<Node>(Branch
+                    {
+                        operators.back(), std::move(left), std::move(right)
+                    }));
 
                     operators.pop_back();
                 };
@@ -201,12 +194,10 @@ namespace mint
                 auto right = std::move(nodes.back()); nodes.pop_back();
                 auto left  = std::move(nodes.back()); nodes.pop_back();
 
-                nodes.push_back(std::make_unique<Node>(
-                      Branch
-                      {
-                          operators.back(), std::move(left), std::move(right)
-                      }
-                ));
+                nodes.push_back(std::make_unique<Node>(Branch
+                {
+                    operators.back(), std::move(left), std::move(right)
+                }));
 
                 operators.pop_back();
             };

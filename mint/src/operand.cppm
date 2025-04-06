@@ -33,7 +33,7 @@ namespace mint
 
         using EvalResult   = xxas::Result<Scalar, EvalErr, Memory::MemErr>;
 
-        template<arch::RegInit Init> constexpr static inline std::array source_map
+        template<Arch A> constexpr static inline std::array source_map
         {   // Register from scalar.
             +[](Traits& _, const Expression& expression, Teb& teb)
                 -> EvalResult
@@ -41,7 +41,7 @@ namespace mint
                 auto regid = expression.evaluate<std::size_t>();
 
                 // Get the cpu thread file through TEB.
-                auto thread_file = teb.thread_file<Init>();
+                auto thread_file = teb.thread_file<A>();
 
                 auto& reg = thread_file.get().reg_file[regid];
 
@@ -81,15 +81,15 @@ namespace mint
 
                 return Scalar
                 {{  // Use the bitness provided by traits to get the correct size.
-                    data_ptr, traits::bitness_for(traits.bitness)
+                    data_ptr, traits.size()
                 }};
             },
         };
 
-        template<arch::RegInit Init> auto evaluate(Teb& teb)
+        template<Arch A> auto evaluate(Teb& teb)
             -> EvalResult
         {   // Get the source function for the traits of the operand.
-            auto& source_funct = source_map<Init>[static_cast<std::size_t>(this->traits.sources)];
+            auto& source_funct = source_map<A>[static_cast<std::size_t>(this->traits.get<traits::Source>())];
 
             // Return the evaluated result from the source function.
             return std::invoke(source_funct, this->traits, this->expression, teb);

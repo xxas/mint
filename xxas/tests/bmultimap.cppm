@@ -30,9 +30,8 @@ namespace xxas_test
 
     void string_function_entries()
     {
-        using Function = int(*)(int);
-        constexpr Function funct_0 = [](int A) -> int { return A * 1; };
-        constexpr Function funct_1 = [](int A) -> int { return A * 2; };
+        constexpr auto funct_0 = +[](int A) -> int { return A * 1; };
+        constexpr auto funct_1 = +[](int A) -> int { return A * 2; };
 
         constexpr static xxas::BMultiMap map
         {

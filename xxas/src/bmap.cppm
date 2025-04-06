@@ -11,51 +11,84 @@ namespace xxas
         using Hash      = std::size_t;
         using Hasher    = Fnv1a<Hash>;
 
-        using KeyArray  = std::array<Hash, N>;
-        using DataArray = std::array<T, N>;
+        using KeyPair   = std::pair<Hash, K>;
+        using Entry     = std::pair<KeyPair, T>;
 
-        KeyArray keys;
-        DataArray data;
+        using Array     = std::array<Entry, N>;
+        using Iterator  = Array::const_iterator;
+
+        Array entries;
 
         // Returns an `std::optional` containing a `const T`
         // of a found entry by key `I`.
-        constexpr auto find(std::convertible_to<K> auto&& key) const
-            -> std::optional<const T>
-        {
-            auto hash = Hasher::hash<K>(key);
-            auto it   = std::lower_bound(keys.cbegin(), keys.cend(), hash,
-            [](const Hash& first, const Hash& hash)
+        template<class In> constexpr auto find(In&& key) const
+            -> Iterator
+            requires std::convertible_to<In, K>
+        {   // Forward the key to the hashing function for computation.
+            auto hash = Hasher::hash<K>(std::forward<In>(key));
+
+            // Perform our binary search.
+            auto it   = std::lower_bound(this->entries.cbegin(), this->entries.cend(), hash,
+            [](const Entry& entry, const Hash& hash)
             {
-                return first < hash;
+                return entry.first.first < hash;
             });
 
-            if(it != this->keys.cend() && *it == hash)
+            // Check if the key is a match.
+            // TODO: Check for collisions via the key pair.
+            if(it != this->entries.cend() && it->first.first == hash)
             {
-                return data[std::distance(this->keys.cbegin(), it)];
+                return it;
             };
 
-            return std::nullopt;
+            // Collision or hashes aren't a match.
+            return this->entries.cend();
+        };
+
+        constexpr auto begin() const noexcept
+            -> Iterator
+        {
+            return this->entries.begin();
+        };
+
+        constexpr auto end() const noexcept
+            -> Iterator
+        {
+            return this->entries.end();
+        };
+
+        constexpr auto cbegin() const noexcept
+            -> Iterator
+        {
+            return this->entries.cbegin();
+        };
+
+        constexpr auto cend() const noexcept
+            -> Iterator
+        {
+            return this->entries.cend();
         };
 
         // Constructs a constant evaluation binary search map from `entries`.
-        template<std::convertible_to<K>... Ks, std::convertible_to<T>... Ts> consteval BMap(std::pair<Ks, Ts>&&... entries)
+        template<class... Ks, class... Ts> consteval BMap(std::pair<Ks, Ts>&&... entries)
+            requires((std::convertible_to<Ks, K> && ...) && (std::convertible_to<Ts, T> && ...))
         {
-            this->keys = KeyArray
-            {   // Hash of each key.
-                Hasher::hash<K>(entries.first)...
+            this->entries = Array
+            {
+                [&]
+                {   // Compute the hash of the key first.
+                    auto hash = Hasher::hash<K>(std::forward<Ks>(entries.first));
+
+                    // Construct the key pair secondly; moving the hash and key into the new struct.
+                    auto key_pair = KeyPair(std::move(hash), std::move(entries.first));
+
+                    return Entry(std::move(key_pair), std::move(entries.second));
+                }()...
             };
 
-            this->data =
-            {   // Move each of the data entries.
-                std::move(entries.second)...
-            };
-
-            // Create a zip view of keys and data.
-            auto zipped = std::ranges::zip_view(this->keys, this->data);
-
-            std::ranges::sort(zipped, [](const auto& a, const auto& b)
-            {   // Sort the entries.
-                return std::get<0>(a) < std::get<0>(b);
+            std::ranges::sort(this->entries, [](const Entry& first, const Entry& second)
+            {
+                return first.first.first < second.first.first;
             });
         };
     };

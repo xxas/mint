@@ -12,6 +12,9 @@ namespace xxas
         // std::is_arithmetic_v wrapper concept.
         template<class T> concept arithmetic = std::is_arithmetic_v<T>;
 
+        // std::is_enum_v wrapper concept.
+        template<class T> concept enumerable = std::is_enum_v<T>;
+
         // Overloads the operator() with specializes provided by `Ts...`.
         template<class... Ts> struct Overloads: Ts...
         {
@@ -35,9 +38,9 @@ namespace xxas
         };
 
         // Simple template placeholder.
-        struct Placeholder{};
+        template<auto Index = 0uz> struct Placeholder{};
 
-        // Container of types.
+        // Container traits.
         template<bool Is, class... Ts> struct Container
         {
             using ContainerTuple = std::tuple<Ts...>;
@@ -63,7 +66,7 @@ namespace xxas
             };
 
             // Returns the index of a type if found within the container.
-            template<class E, std::size_t Index = 0uz> constexpr auto index_of(TypeIdentity<E>) const noexcept
+            template<class E, std::integral auto Index = 0uz> constexpr auto index_of(TypeIdentity<E>) const noexcept
                 -> std::size_t
             {
                 static_assert(sizeof...(Ts) > Index, "Index out of bounds");
@@ -71,11 +74,34 @@ namespace xxas
             };
         };
 
+        template<class... Ts> struct Forwarding
+        {
+            template<class... Es> constexpr auto forward_alike(std::tuple<Es...>&& tuple) const noexcept
+            {
+                return [&tuple]<auto... In>(std::index_sequence<In...>)
+                {
+                    return std::tuple_cat([&]
+                    {
+                        if constexpr(meta::same_as<Es...[In], Ts...>)
+                        {
+                            return std::tuple<Es...[In]>(std::get<In>(tuple));
+                        }
+                        else
+                        {
+                            return std::tuple<>{};
+                        };
+                    }()...);
+                }(std::make_index_sequence<sizeof...(Es)>{});
+            };
+        };
+
+        // Multiple template types meta-programming.
         template<class... Ts> struct Template
-            : TypeIdentity<Placeholder>, Container<false, Ts...>
+            : TypeIdentity<Placeholder<>>, Container<false, Ts...>, Forwarding<Ts...>
         {
             using Container<false, Ts...>::size;
             using Container<false, Ts...>::is_container;
+            using Forwarding<Ts...>::forward_alike;
 
             template<class... Es> constexpr auto operator==(Template<Es...>) const noexcept
                 -> bool
@@ -84,10 +110,12 @@ namespace xxas
             };
         };
 
+        // Single template type meta-programming.
         template<class T> struct Template<T>
-            : TypeIdentity<T>, Container<false>
+            : TypeIdentity<T>, Container<false>, Forwarding<T>
         {
             using Container<false>::is_container;
+            using Forwarding<T>::forward_alike;
 
             template<class... Es> constexpr auto operator==(Template<Es...>) const noexcept
                 -> bool
@@ -96,13 +124,15 @@ namespace xxas
             };
         };
 
+        // Container template meta-programming.
         template<template<class...> class C, class... Ts> struct Template<C<Ts...>>
-            : TypeIdentity<C<Ts...>>, Container<true, Ts...>
+            : TypeIdentity<C<Ts...>>, Container<true, Ts...>, Forwarding<Ts...>
         {
             template<class... Es> using Extend = Template<C<Ts..., Es...>>;
 
             using Container<true, Ts...>::size;
             using Container<true, Ts...>::is_container;
+            using Forwarding<Ts...>::forward_alike;
 
             // Provided an empty type, returns the current template.
             template<class E> constexpr auto dedup_extend(E) const noexcept
@@ -129,6 +159,18 @@ namespace xxas
             {
                 return std::same_as<Template<C<Ts...>>, Template<Es...>>;
             };
+        };
+
+        // Only forwards elements of `tuple` that are alike `Ts...`.
+        template<class... Ts> constexpr auto forward_alike(auto&& tuple)
+        {
+            return Template<Ts...>{}.forward_alike(std::forward<decltype(tuple)>(tuple));
+        };
+
+        // Applies `funct` to the elements of `tuple` that are alike `Ts...`.
+        template<class... Ts> constexpr auto apply_alike(auto&& funct, auto&& tuple)
+        {
+            return std::apply(std::forward<decltype(funct)>(funct), meta::forward_alike<Ts...>(std::forward<decltype(tuple)>(tuple)));
         };
 
         // Defines a concept that describes a type that include a variadic template of hetereogenous types.

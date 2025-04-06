@@ -48,7 +48,7 @@ namespace mint
             {   // Evaluate each operand.
                 auto results = std::ranges::transform(insn.operands, [&](Operand& operand)
                 {
-                    return operand.evaluate<Arch.reg_initializer>(teb);
+                    return operand.evaluate<Arch.reg_file>(teb);
                 });
 
                 for(auto& result: results)

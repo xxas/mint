@@ -53,10 +53,10 @@ namespace xxas
             return (Offset ^ static_cast<H>(K)) * Prime;
         };
 
-        template<class T> constexpr static auto hash(const T& K)
+        template<class T> constexpr static auto hash(T&& K)
             -> const ValueType
         {
-            return std::invoke(Fnv1a{}, K);
+            return std::invoke(Fnv1a{}, std::forward<T>(K));
         };
     };
 

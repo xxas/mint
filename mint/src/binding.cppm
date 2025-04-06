@@ -2,7 +2,6 @@ export module mint: binding;
 
 import :memory;
 import :cpu;
-
 import :traits;
 import :scalar;
 import :context;
@@ -40,7 +39,7 @@ namespace mint
         template<class... Args> constexpr auto operator()(Args&&... args) const
             -> FunctResult
         {
-            if (!this->function) [[unlikely]]
+            if(!this->function) [[unlikely]]
             {
                 return xxas::error(FunctErr::Invocation, "Function is not set");
             };
@@ -49,7 +48,7 @@ namespace mint
         };
 
         // Creates a low-level argument bound function for direct execution from a function and a range of byte slices.
-        template<class... Args> constexpr static auto create(FunctionFor<Args...>& funct, std::ranges::range auto& spans)
+        template<class... Args> constexpr static auto create(const FunctionFor<Args...>& funct, std::ranges::range auto& spans)
             -> CreateResult
         {   // Not enough byte spans provided to extract arguments from.
             if(spans.size() < sizeof...(Args))
@@ -60,16 +59,15 @@ namespace mint
                 return xxas::error(CreateErr::BytesLen, std::format("Not enough data ({} bytes) provided for {} ({}bytes)", spans.size(), typename_str, types_size));
             };
 
-            auto check_alignment = [&]<auto... In>(std::index_sequence<In...>)
+            auto is_aligned = [&]<auto... In>(std::index_sequence<In...>)
                 -> bool
             {
                 return ((reinterpret_cast<std::uintptr_t>(spans.at(In).data()) % alignof(Args) == 0) && ...);
             };
 
-            if(!check_alignment(std::index_sequence_for<Args...>{}))
+            if(!is_aligned(std::index_sequence_for<Args...>{}))
             {
-
-                return xxas::error(CreateErr::BytesLen, "Memory spans are not properly aligned for argument types.");
+                return xxas::error(CreateErr::BytesLen, "Memory spans are not properly aligned for argument types");
             };
 
             auto get_tuple_refs = [&]<auto... In>(std::index_sequence<In...>)
@@ -86,7 +84,7 @@ namespace mint
 
             return Binding
             {    // Capture the original function as a reference and the arguments moved into the function.
-                .function = [funct = std::ref(funct), args = std::move(arg_refs)]
+                .function = [funct = std::cref(funct), args = std::move(arg_refs)]
                     -> FunctResult
                 {   // Unpack the arguments and perfectly forward them to the function.
                     return std::apply([&funct](auto&&... unpacked_args)

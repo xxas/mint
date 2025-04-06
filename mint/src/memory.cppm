@@ -86,7 +86,7 @@ namespace mint
 
             size = this->align(size);
 
-            std::scoped_lock lock(mem_mutex);  // Lock for thread safety.
+            std::scoped_lock lock(this->mem_mutex);  // Lock for thread safety.
 
             std::size_t paddr = this->pmem.size();
             this->pmem.resize(paddr + size);
@@ -103,7 +103,7 @@ namespace mint
         auto translate(std::size_t vaddr)
             -> MemResult<std::size_t>
         {
-            std::scoped_lock lock(mem_mutex);
+            std::scoped_lock lock(this->mem_mutex);
 
             std::size_t vaddr_base = this->align(vaddr);
 
@@ -126,7 +126,7 @@ namespace mint
         auto read(std::size_t vaddr, std::size_t size)
             -> MemResult<std::span<std::byte>>
         {
-            std::scoped_lock lock(mem_mutex);
+            std::scoped_lock lock(this->mem_mutex);
 
             auto result = this->translate(vaddr);
             if (!result)
@@ -152,7 +152,7 @@ namespace mint
         auto write(std::size_t vaddr, std::span<const std::byte> bytes)
             -> MemResult<void>
         {
-            std::scoped_lock lock(mem_mutex);
+            std::scoped_lock lock(this->mem_mutex);
 
             auto result = this->translate(vaddr);
             if (!result)

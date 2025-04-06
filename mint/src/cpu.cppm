@@ -27,14 +27,14 @@ namespace mint
         // Register files for each thread id.
         ThreadFiles   thread_files;
 
-        template<arch::RegInit Init> auto try_init(const std::size_t& thread_id) noexcept
+        template<Arch a> auto try_init(const std::size_t& thread_id) noexcept
             -> arch::ThreadFile&
         {   // Try emplacing a newly constructed thread file if one doesn't already exists for the thread id.
             auto [it, _] = this->thread_files.try_emplace(thread_id,
-                ThreadFile
-                {
-                    .reg_file = std::move(Init())
-                });
+            ThreadFile
+            {
+                .reg_file = a.reg_file()
+            });
 
             // Return the thread-file.
             return it->second;

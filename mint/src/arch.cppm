@@ -15,9 +15,7 @@ import :traits;
 namespace mint
 {
     namespace arch
-    {   // User-defined instruction function alternatives.
-        template<class... Ts> using Insn = xxas::meta::DedupExtend_t<std::variant<>, xxas::meta::Template<Ts...>>;
-
+    {
         export using Register  = std::vector<std::byte>;
         export using RegFile   = std::unordered_map<std::string, Register>;
 
@@ -29,35 +27,46 @@ namespace mint
             RegFile reg_file;
         };
 
-        // User-defined register-file initialization information.
-        export template<std::size_t N> struct RegInit
+        // User-defined keywords.
+        export template<std::size_t N> struct Keywords
+            : xxas::BMap<std::string, Traits, N>
         {
-            using RegBitness = std::array<std::pair<std::string, std::uint16_t>, N>;
-            const RegBitness registers;
+            using Base  = xxas::BMap<std::string, Traits, N>;
+            using Entry = Base::Entry;
 
-            // Initialize a new register file based on the bitness fields.
-            auto operator()() const noexcept
+            using Base::find;
+
+            // Construct a new array of keywords.
+            template<class... Strs> constexpr Keywords(std::pair<Strs, Traits>&&... keywords)
+                : Base{std::pair{std::string(std::move(keywords.first)), std::move(keywords.second)}... } {};
+
+            // Filters user-defined keywords that are given the Register trait,
+            // zero-initializes each user-defined register to the specified bitness index.
+            auto reg_file() const
                 -> RegFile
             {
+                auto registers = std::ranges::filter_view(this->entries,
+                [](const Entry& keyword)
+                {
+                    return keyword.second.template get_as<traits::Source>() == traits::Source::Register;
+                });
+
                 RegFile reg_file{};
 
-                for(std::size_t i = 0; i < this->registers.size(); i++)
-                {
-                    auto& [name, bitness_index] = this->registers[i];
-
-                    // Get the bitness for the register.
-                    auto bitness = traits::bitness_for(bitness_index);
-
-                    Register reg{};
-                    reg.resize(bitness);
-
-                    // Initialize the register to the user-specified bitness.
-                    reg_file.insert_or_assign(name, std::move(reg));
+                for(auto& [key_pair, traits]: registers)
+                {   // Insert each register with the proper bitness.
+                    reg_file.insert_or_assign(key_pair.second, Register{ traits.size() });
                 };
 
                 return reg_file;
             };
         };
+
+        template<class... Strs> Keywords(std::pair<Strs, Traits>&&...)
+            -> Keywords<sizeof...(Strs)>;
+
+        // User-defined instruction function alternatives.
+        template<class... Ts> using Insn = xxas::meta::DedupExtend_t<std::variant<>, Ts...>;
 
         export template<class... Ts> struct Insns
             : xxas::BMap<std::string, Insn<Ts...>, sizeof...(Ts)>
@@ -65,11 +74,11 @@ namespace mint
             using Insn = Insn<Ts...>;
             using Base = xxas::BMap<std::string, Insn, sizeof...(Ts)>;
 
-            using Base::Base;
+            using Base::find;
 
             // Construct an array of pointers to each function.
             template<class... Strs> constexpr Insns(std::pair<Strs, Ts>&&... insns)
-                requires(std::convertible_to<Strs, std::string> || ...)
+                requires(std::convertible_to<std::string, Strs> && ...)
                 : Base{std::pair{std::string(std::move(insns.first)), Insn(std::move(insns.second))}... } {};
         };
     };
@@ -80,6 +89,13 @@ namespace mint
         arch::Insns<Insns...> insns;
 
         // Register ids -> initialization.
-        arch::RegInit<sizeof...(Regs)> reg_init;
+        arch::Keywords<sizeof...(Regs)> keywords;
+
+        // Initializes a new register file.
+        constexpr auto reg_file() const
+            -> arch::RegFile
+        {
+            return this->keywords.reg_file();
+        };
     };
 };

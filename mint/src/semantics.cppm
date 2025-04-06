@@ -41,7 +41,7 @@ namespace mint
                   : min{ min }, max{ max }, format{ Format::Range } {};
             };
 
-            // The data set cardinal; this defines the size or range of the data set.
+            // The data set cardinal. this defines the size or range of the data set.
             union Cardinal
             {
                 Fixed fixed;
@@ -65,9 +65,9 @@ namespace mint
                 return this->cardinal.fixed.format;
             };
 
-            // Validates the range of operands--with an offset of N into the range--against the traits of the guide.
-            constexpr auto valid(const std::ranges::range auto& range, const std::size_t& n) const noexcept
-                -> const std::size_t
+            // Validates the compatibility of a range of opearnds against the guide with an offset of N into the guide.
+            constexpr auto compat(const std::ranges::range auto& range, const std::size_t& n) const noexcept
+                -> std::size_t
             {   // Get the format bit of the guide.
                 const auto format = this->format();
 
@@ -91,7 +91,7 @@ namespace mint
                     // Validate that each operand follows the specified traits.
                     for(const auto& operand: subrange)
                     {
-                        if(this->traits != operand.traits)
+                        if(this->traits.compat(operand.traits))
                         {
                             return 0uz;
                         };
@@ -114,16 +114,16 @@ namespace mint
             };
         };
 
-        // Validate an std::span of guides against a std::ranges::range of operands.
-        export template<std::size_t N> constexpr auto valid(const std::span<const Guide, N>& span, const std::ranges::range auto& range) noexcept
+        // Validates the compatibility of range of operands against a span of guides.
+        export template<std::size_t N> constexpr auto compat(const std::ranges::range auto& guides, const std::ranges::range auto& range) noexcept
             -> bool
         {   // Total count of validated objects.
             std::size_t count = 0;
 
             // Validate each data set against a guide.
-            for(const Guide& guide: span)
+            for(const Guide& guide: guides)
             {
-                if(std::size_t result = guide.valid(range, count); result != 0uz)
+                if(std::size_t result = guide.compat(range, count); result != 0uz)
                 {   // Increment the validated count by the result.
                     count = count + result;
                 }
