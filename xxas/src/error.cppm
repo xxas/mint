@@ -59,14 +59,13 @@ namespace xxas
         template<class... From> constexpr Result(const Error<From...>& err) noexcept : Base(std::unexpected(err)) {};
         template<class... From> constexpr Result(Error<From...>&& err) noexcept      : Base(std::unexpected(std::move(err))) {};
 
-        template<std::invocable<T> F> constexpr auto and_then(F&& funct)
+        template<class F> constexpr auto and_then(F&& funct)
             -> Result<std::invoke_result_t<F, T>, Errs...>
         {
             if(!*this)
             {
                 return std::unexpected(this->error());
             };
-
 
             if constexpr(std::same_as<std::invoke_result_t<F, T>, void>)
             {
@@ -80,14 +79,13 @@ namespace xxas
             };
         };
 
-        template<std::invocable F> constexpr auto and_then(F&& funct)
+        template<class F> constexpr auto and_then(F&& funct)
             -> Result<std::invoke_result_t<F>, Errs...>
         {
             if(!*this)
             {
                 return std::unexpected(this->error());
             };
-
 
             if constexpr(std::same_as<std::invoke_result_t<F>, void>)
             {

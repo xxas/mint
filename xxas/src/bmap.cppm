@@ -19,13 +19,12 @@ namespace xxas
 
         Array entries;
 
-        // Returns an `std::optional` containing a `const T`
-        // of a found entry by key `I`.
-        template<class In> constexpr auto find(In&& key) const
+        // Returns the iterator position of the key, or returns the end iterator.
+        template<class In> constexpr auto find(const In& key) const
             -> Iterator
             requires std::convertible_to<In, K>
         {   // Forward the key to the hashing function for computation.
-            auto hash = Hasher::hash<K>(std::forward<In>(key));
+            auto hash = Hasher::hash<K>(key);
 
             // Perform our binary search.
             auto it   = std::lower_bound(this->entries.cbegin(), this->entries.cend(), hash,
@@ -34,15 +33,30 @@ namespace xxas
                 return entry.first.first < hash;
             });
 
-            // Check if the key is a match.
-            // TODO: Check for collisions via the key pair.
-            if(it != this->entries.cend() && it->first.first == hash)
+            // Check if any match exists.
+            if (it == this->entries.cend() || it->first.first != hash)
+            {
+                return this->entries.cend();
+            };
+
+            // Count how many entries share the same hash.
+            auto range_end = std::upper_bound(it, entries.cend(), hash,
+            [](const Hash& hash, const Entry& entry)
+            {
+                return hash < entry.first.first;
+            });
+
+            auto count = std::distance(it, range_end);
+
+            if(count == 1)
             {
                 return it;
             };
 
-            // Collision or hashes aren't a match.
-            return this->entries.cend();
+            return std::find_if(it, range_end, [&](const Entry& entry)
+            {
+                return entry.first.second == key;
+            });
         };
 
         constexpr auto begin() const noexcept

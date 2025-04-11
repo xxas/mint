@@ -24,24 +24,24 @@ namespace mint
 
         using CreateResult  = xxas::Result<Binding, CreateErr>;
 
-        enum class FunctErr: std::uint8_t
+        enum class Err: std::uint8_t
         {
             Invocation,
         };
 
-        using FunctResult   = xxas::Result<void, FunctErr>;
+        using Result   = xxas::Result<void, Err>;
 
-        template<class... Args> using FunctionFor = std::function<FunctResult(Args...)>;
+        template<class... Args> using FunctionFor = std::function<Result(Args...)>;
         using Function                            = FunctionFor<>;
 
         Function function;
 
         template<class... Args> constexpr auto operator()(Args&&... args) const
-            -> FunctResult
+            -> Result
         {
             if(!this->function) [[unlikely]]
             {
-                return xxas::error(FunctErr::Invocation, "Function is not set");
+                return xxas::error(Err::Invocation, "Function is not set");
             };
 
             return std::invoke(this->function, std::forward<Args>(args)...);
@@ -85,7 +85,7 @@ namespace mint
             return Binding
             {    // Capture the original function as a reference and the arguments moved into the function.
                 .function = [funct = std::cref(funct), args = std::move(arg_refs)]
-                    -> FunctResult
+                    -> Result
                 {   // Unpack the arguments and perfectly forward them to the function.
                     return std::apply([&funct](auto&&... unpacked_args)
                     {

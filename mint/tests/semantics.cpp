@@ -24,7 +24,7 @@ namespace mint_tests
 
     constexpr auto definition()
     {
-      xxas::assert_eq(src_imm_f64.get_as<traits::Source>(), traits::Source::Immediate);
+        xxas::assert_eq(src_imm_f64.get_as<traits::Source>(), traits::Source::Immediate);
     };
 
     constexpr xxas::Tests semantics

@@ -44,7 +44,7 @@ namespace mint_test
 
     constexpr void pointer_arithmetic()
     {
-      std::array<double, 5> array{100.0, 200.0, 300.0, 400.0, 500.0};
+        std::array<double, 5> array{100.0, 200.0, 300.0, 400.0, 500.0};
 
         std::uintptr_t base_address = reinterpret_cast<std::uintptr_t>(array.data());
         std::uintptr_t index        = 3;

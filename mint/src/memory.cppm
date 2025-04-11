@@ -55,18 +55,21 @@ namespace mint
         // Physical memory bytes.
         using PhysicalMem = std::vector<std::byte>;
 
-        MemoryMap                vmap;
-        PhysicalMem              pmem;
-        std::atomic<std::size_t> next_vaddr = 0x1000;
-        std::size_t              page_len = mem::default_page_size;
-        std::mutex               mem_mutex;
+        // Atomic-safe next virtual address.
+        using AtomicAddr  = std::atomic<std::size_t>;
 
-        enum class MemErr: std::uint8_t
+        MemoryMap            vmap;
+        PhysicalMem          pmem;
+        AtomicAddr           next_vaddr = 0x1000;
+        std::size_t          page_len   = mem::default_page_size;
+        std::recursive_mutex mem_mutex;
+
+        enum class Err: std::uint8_t
         {
             Alloc, VAddr, Stack, Access
         };
 
-        template<class T> using MemResult = xxas::Result<T, MemErr>;
+        template<class T> using Result = xxas::Result<T, Err>;
 
         // Align a virtual address to page boundaries.
         constexpr auto align(std::size_t virtual_addr) const noexcept
@@ -77,11 +80,11 @@ namespace mint
 
         // allocate a size of memory with flags and returns a virtual address corresponding.
         auto alloc(std::size_t size, mem::Protection flags = mem::Protection::Rw)
-            -> MemResult<std::size_t>
+            -> Result<std::size_t>
         {
             if(size == 0uz)
             {
-                return xxas::error(MemErr::Alloc, "Invalid allocation: size must be nonzero.");
+                return xxas::error(Err::Alloc, "Invalid allocation: size must be nonzero");
             }
 
             size = this->align(size);
@@ -101,7 +104,7 @@ namespace mint
 
         // Translate virtual address to physical address.
         auto translate(std::size_t vaddr)
-            -> MemResult<std::size_t>
+            -> Result<std::size_t>
         {
             std::scoped_lock lock(this->mem_mutex);
 
@@ -110,13 +113,13 @@ namespace mint
             auto it = this->vmap.find(vaddr_base);
             if (it == this->vmap.end())
             {
-                return xxas::error(MemErr::VAddr, "Invalid virtual address.");
+                return xxas::error(Err::VAddr, "Invalid virtual address");
             }
 
             std::size_t offset = vaddr - vaddr_base;
             if (offset >= it->second.size)
             {
-                return xxas::error(MemErr::VAddr, "Address out of bounds.");
+                return xxas::error(Err::VAddr, "Address out of bounds");
             }
 
             return it->second.paddr + offset;
@@ -124,7 +127,7 @@ namespace mint
 
         // Read from virtual address and size.
         auto read(std::size_t vaddr, std::size_t size)
-            -> MemResult<std::span<std::byte>>
+            -> Result<std::span<std::byte>>
         {
             std::scoped_lock lock(this->mem_mutex);
 
@@ -136,10 +139,10 @@ namespace mint
 
             auto paddr = *result;
 
-            auto region_it = vmap.find(align(vaddr));
-            if (region_it == vmap.end() || (region_it->second.flags & mem::Protection::Readable))
+            auto region_it = vmap.find(this->align(vaddr));
+            if (region_it == vmap.end() || !(region_it->second.flags & mem::Protection::Readable))
             {
-                return xxas::error(MemErr::Access, "Memory read access denied.");
+                return xxas::error(Err::Access, "Memory read access denied");
             };
 
             return std::span<std::byte>
@@ -149,8 +152,8 @@ namespace mint
         };
 
         // Write memory from a span
-        auto write(std::size_t vaddr, std::span<const std::byte> bytes)
-            -> MemResult<void>
+        template<std::ranges::contiguous_range T> auto write(std::size_t vaddr, const T& range)
+            -> Result<void>
         {
             std::scoped_lock lock(this->mem_mutex);
 
@@ -162,13 +165,13 @@ namespace mint
 
             auto paddr = *result;
 
-            auto region_it = vmap.find(align(vaddr));
+            auto region_it = vmap.find(this->align(vaddr));
             if (region_it == vmap.end() || !(region_it->second.flags & mem::Protection::Writtable))
             {
-                return xxas::error(MemErr::Access, "Memory write access denied.");
+                return xxas::error(Err::Access, "Memory write access denied");
             }
 
-            std::memcpy(&this->pmem[paddr], bytes.data(), bytes.size());
+            std::memcpy(&this->pmem[paddr], std::ranges::data(range), std::ranges::size(range) * sizeof(std::ranges::range_value_t<T>));
 
             return {};
         };

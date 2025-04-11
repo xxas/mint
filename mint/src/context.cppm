@@ -27,13 +27,13 @@ namespace mint
 
         using ThreadFileRef = std::reference_wrapper<arch::ThreadFile>;
 
-        auto cpu()
+        auto cpu() const
             -> Cpu&
         {
             return this->cpu_ref.get();
         };
 
-        auto mem()
+        auto mem() const
             -> Memory&
         {
             return this->mem_ref.get();
@@ -63,7 +63,7 @@ namespace mint
         // Stack frame for the current thread.
         StackFrame stack_frame;
 
-        auto peb()
+        auto peb() const
             -> Peb&
         {
             return this->peb_ref.get();

@@ -14,7 +14,7 @@ namespace mint
 {
     namespace expr
     {
-        export enum class Operator : std::uint8_t
+        export enum class Operator: std::uint8_t
         {
             Add = 0, Sub, Mul, Div,
         };

@@ -20,7 +20,7 @@ namespace mint
 {
     struct JitCompiler
     {
-        enum CompilationErr: std::uint8_t
+        enum Err: std::uint8_t
         {
             Empty, Missing,
         };
@@ -31,15 +31,15 @@ namespace mint
         // Jit compiler output bindings.
         using Output = std::vector<Binding>;
 
-        using CompilationResult = xxas::Result<Output, CompilationErr>;
+        using Result = xxas::Result<Output, Err>;
 
         // Just-in-time compiles loose instruction information into direct function calls for a thread.
         template<Arch Arch> constexpr static auto from(Input& input, Teb& teb)
-            -> CompilationResult
+            -> Result
         {
             if(input.empty())
             {
-                return xxas::error(CompilationErr::Empty, "Not enough instructions to preform JIT compilation");
+                return xxas::error(Err::Empty, "Not enough instructions to preform JIT compilation");
             };
 
             // JIT output bindings.
@@ -51,34 +51,30 @@ namespace mint
                     return operand.evaluate<Arch.reg_file>(teb);
                 });
 
-                for(auto& result: results)
-                {   // Check if any operands failed to evaluate.
-                    if(!result)
-                    {
-                        return result.error();
-                    };
+                // Return the first error found in the evaluated operands.
+                if(auto it = std::ranges::find_if(results, std::not_fn(&Operand::Result::has_value)); it != results.end())
+                {
+                    return it->error();
                 };
 
-                using EvalResult = Operand::EvalResult;
-
                 // Aggregate successfully evaluated results as scalars.
-                auto scalars = std::ranges::transform(results, [&](EvalResult& result)
+                auto scalars = std::ranges::transform(results, [&](auto& result)
                 {
                     return *result;
                 });
 
-                // Get the function for the opcode.
-                auto& funct  = Arch.insns.find(static_cast<std::size_t>(insn.opcode));
+                // Find the iterator for the instruction.
+                auto& funct_it  = Arch.insns.find(insn.opcode);
 
-                if(funct == std::nullopt)
+                if(funct_it == Arch.insns.cend())
                 {
-                    return xxas::error(CompilationErr::Missing, std::format("Cannot find a matching function for opcode: {}", insn.opcode));
+                    return xxas::error(Err::Missing, std::format("Cannot find a matching function for opcode: {}", insn.opcode));
                 };
 
-                // Bind to the function.
-                auto binding = funct->visit([&](auto& opcode_funct)
+                // Create a new binding for the function.
+                auto binding = funct_it->visit([&scalars](auto& funct)
                 {
-                    return Binding::create(opcode_funct, scalars);
+                    return Binding::create(funct, scalars);
                 });
             };
             // Return our built functions.

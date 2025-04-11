@@ -12,7 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 function(add_xxas_test name)
     # Create the test executable.
-    add_executable(test_${name} ${name}.cppm)
+    add_executable(test_${name} ${name}.cpp)
 
     # Link the library to the executable.
     target_link_libraries(test_${name} PRIVATE xxas)

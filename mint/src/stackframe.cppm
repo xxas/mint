@@ -31,14 +31,14 @@ namespace mint
         // Stack size.
         std::size_t size;
 
-        enum class StackErr: std::uint8_t
+        enum class Err: std::uint8_t
         {
             Address,
             Overflow,
             Underflow,
         };
 
-        template<class T = std::void_t<>> using StackResult = xxas::Result<T, StackErr, Memory::MemErr>;
+        template<class T = std::void_t<>> using Result = xxas::Result<T, Err, Memory::Err>;
 
         StackFrame(std::size_t vaddr, std::size_t size)
             : sp(vaddr + size), bp(sp), vaddr(vaddr), size(size) {};
@@ -51,55 +51,55 @@ namespace mint
         };
 
         // Push a raw slice of bytes onto the stack.
-        auto push_bytes(Memory& mem, std::span<const std::byte> data)
-            -> StackResult<>
-        {
-            if (data.size() > sp - vaddr)
+        template<std::ranges::contiguous_range T> auto push_bytes(Memory& mem, const T& data)
+            -> Result<>
+        {   // Ensure the data isn't larger than the stack.
+            if(data.size() > this->sp - this->vaddr)
             {
-                return xxas::error(StackErr::Overflow, "Stack overflow: Not enough space to push data.");
+                return xxas::error(Err::Overflow, "Stack overflow: Not enough space to push data.");
             };
 
-            this->sp -= data.size();
+            auto data_size = std::ranges::size(data) * sizeof(std::ranges::range_value_t<T>);
 
-            auto result = mem.translate(sp);
-            if(!result)
+            this->sp -= data_size;
+
+            if(auto write_result = mem.write(this->sp, data); !write_result)
             {
-                return result.error();
+                return write_result.error();
             };
-
-            auto paddr = *result;
-
-            std::memcpy(&mem.pmem[result.value()], data.data(), data.size());
 
             return {};
         };
 
         // Pop a raw slice of bytes from the stack.
-        auto pop_bytes(Memory& mem, std::span<std::byte> data)
-            -> StackResult<>
+        auto pop_bytes(Memory& mem, std::size_t size)
+            -> Result<std::vector<std::byte>>
         {
-            if (this->sp + data.size() > this->vaddr + this->size)
+            if(this->sp + size > this->vaddr + this->size)
             {
-                return xxas::error(StackErr::Underflow, "Stack underflow: Attempted to pop beyond allocated stack.");
-            }
-
-            auto result = mem.translate(sp);
-            if(!result)
-            {
-                return result.error();
+                return xxas::error(Err::Underflow, "Stack underflow: Attempted to pop beyond allocated stack.");
             };
 
-            auto paddr = *result;
+            // Read the bytes from the stack.
+            auto read_result = mem.read(this->sp, size);
+            if(!read_result)
+            {
+                return read_result.error();
+            };
 
-            std::memcpy(data.data(), &mem.pmem[paddr], data.size());
-            this->sp += data.size();
+            // Increment the stack pointer back to the top.
+            this->sp += size;
 
-            return {};
+            // Copy the memory to the new vector.
+            std::vector<std::byte> bytes{size};
+            std::memcpy(bytes.data(), read_result->data(), size);
+
+            return bytes;
         };
 
         // Push generic data onto the stack.
         template<class T>  auto push(Memory& mem, const T& value)
-            -> StackResult<>
+            -> Result<>
         {
             constexpr std::size_t alignment = alignof(T);
             this->sp = align(this->sp - sizeof(T), alignment);
@@ -114,45 +114,40 @@ namespace mint
 
         // Pop generic data from the stack safely.
         template<class T> auto pop(Memory& mem)
-            -> StackResult<T>
+            -> Result<T>
         {
             constexpr std::size_t alignment = alignof(T);
             this->sp = this->align(this->sp, alignment);
 
-            // Check stack underflow
-            if (this->sp + sizeof(T) > this->vaddr + this->size)
+            // Check stack underflow.
+            if(this->sp + sizeof(T) > this->vaddr + this->size)
             {
-                return xxas::error(StackErr::Underflow, "Stack underflow: Attempted to pop beyond allocated stack.");
+                return xxas::error(Err::Underflow, "Stack underflow: Attempted to pop beyond allocated stack.");
             };
 
-            T value{};
-            std::span<std::byte> data
+            if(auto result = this->pop_bytes(mem, sizeof(T)); !result)
             {
-                reinterpret_cast<std::byte*>(&value), sizeof(T)
-            };
-
-            auto result = this->pop_bytes(mem, data);
-            if (!result)
+                return result.error();
+            }
+            else
             {
-                return xxas::error(StackErr::Address, "Failed to pop data from the stack.");
+                return *reinterpret_cast<T*>(result->data());
             };
-
-            return value;
         };
 
         // Function prologue: save caller's state.
         auto function_prologue(Memory& mem)
-            -> StackResult<>
+            -> Result<>
         {   // Save previous base pointer.
             return this->push(mem, this->bp).and_then([this, &mem]
-                {   // Update base pointer.
-                    this->bp = this->sp;
-                });
+            {   // Update base pointer.
+                this->bp = this->sp;
+            });
         };
 
         // Function epilogue: restore caller's state.
         auto function_epilogue(Memory& mem)
-            -> StackResult<>
+            -> Result<>
         {   // Reset stack pointer.
             this->sp = this->bp;
 

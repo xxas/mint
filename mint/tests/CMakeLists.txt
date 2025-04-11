@@ -12,7 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 function(add_mint_test name)
     # Create the test executable.
-    add_executable(test_${name} ${name}.cppm)
+    add_executable(test_${name} ${name}.cpp)
 
     # Link the libraries to the executable.
     target_link_libraries(test_${name} PRIVATE mint xxas)
@@ -29,3 +29,5 @@ add_mint_test(semantics)
 add_mint_test(binding)
 add_mint_test(expression)
 add_mint_test(arch)
+add_mint_test(memory)
+add_mint_test(jit)

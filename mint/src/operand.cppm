@@ -24,19 +24,19 @@ namespace mint
         Expression expression;
         Traits     traits;
 
-        enum class EvalErr: std::uint8_t
+        enum class Err: std::uint8_t
         {
             Uninitialized,
             Casting,
             Nonconstant,
         };
 
-        using EvalResult   = xxas::Result<Scalar, EvalErr, Memory::MemErr>;
+        using Result   = xxas::Result<Scalar, Err, Memory::Err>;
 
         template<Arch A> constexpr static inline std::array source_map
         {   // Register from scalar.
             +[](Traits& _, const Expression& expression, Teb& teb)
-                -> EvalResult
+                -> Result
             {   // Get the register id from the scalar.
                 auto regid = expression.evaluate<std::size_t>();
 
@@ -53,18 +53,18 @@ namespace mint
             },
             // Immediate value from scalar.
             +[](Traits& traits, const Expression& expression, Teb& teb)
-                -> EvalResult
+                -> Result
             {
                 return expression.constant().transform([](Scalar scalar)
-                    -> EvalResult
+                    -> Result
                 {
                     return scalar;
                 })
-                .value_or(xxas::error(EvalErr::Nonconstant, "Immediate value expects a constant expression"));
+                .value_or(xxas::error(Err::Nonconstant, "Immediate value expects a constant expression"));
             },
             // Memory address from scalar.
             +[](Traits& traits, const Expression& expression, Teb& teb)
-                -> EvalResult
+                -> Result
             {   // Get the virtual address from the scalar.
                 auto vaddr = expression.evaluate<std::uintptr_t>();
 
@@ -87,7 +87,7 @@ namespace mint
         };
 
         template<Arch A> auto evaluate(Teb& teb)
-            -> EvalResult
+            -> Result
         {   // Get the source function for the traits of the operand.
             auto& source_funct = source_map<A>[static_cast<std::size_t>(this->traits.get<traits::Source>())];
 

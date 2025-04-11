@@ -36,17 +36,16 @@ namespace mint
 
             using Base::find;
 
-            // Construct a new array of keywords.
             template<class... Strs> constexpr Keywords(std::pair<Strs, Traits>&&... keywords)
-                : Base{std::pair{std::string(std::move(keywords.first)), std::move(keywords.second)}... } {};
+                : Base{std::pair{std::string(std::move(keywords.first)), std::move(keywords.second)}...} {};
 
             // Filters user-defined keywords that are given the Register trait,
-            // zero-initializes each user-defined register to the specified bitness index.
+            // zero-initialize each user-defined register to the specified bitness.
             auto reg_file() const
                 -> RegFile
             {
                 auto registers = std::ranges::filter_view(this->entries,
-                [](const Entry& keyword)
+                [](const auto& keyword)
                 {
                     return keyword.second.template get_as<traits::Source>() == traits::Source::Register;
                 });
@@ -76,10 +75,8 @@ namespace mint
 
             using Base::find;
 
-            // Construct an array of pointers to each function.
             template<class... Strs> constexpr Insns(std::pair<Strs, Ts>&&... insns)
-                requires(std::convertible_to<std::string, Strs> && ...)
-                : Base{std::pair{std::string(std::move(insns.first)), Insn(std::move(insns.second))}... } {};
+                : Base{std::pair{std::string(std::move(insns.first)), Insn(std::move(insns.second))}...} {};
         };
     };
 

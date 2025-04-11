@@ -74,7 +74,7 @@ namespace mint
         template<xxas::meta::enumerable... Ts> consteval Traits(const Ts... enums)
           : bits{static_cast<std::uint8_t>((std::uint8_t{0} | ... | static_cast<std::uint8_t>(std::to_underlying(enums))))}
         {   // Propagate a static assertion if any provided argument appearance exceeds its types popcount.
-            static_assert(traits::provided_count<Ts...>(), "Enumerable type appearance exceeds the popcount for its type.");
+            static_assert(traits::provided_count<Ts...>(), "Enumerable type appearance exceeds the popcount for its type");
         };
 
         // Returns the template argument as its underlying bits.
