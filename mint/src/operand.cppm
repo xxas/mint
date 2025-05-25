@@ -65,24 +65,24 @@ namespace mint
             // Memory address from scalar.
             +[](Traits& traits, const Expression& expression, Teb& teb)
                 -> Result
-            {   // Get the virtual address from the scalar.
-                auto vaddr = expression.evaluate<std::uintptr_t>();
+            {   // Evaluate the scalar.
+                auto vaddr    = expression.evaluate<std::uintptr_t>();
+                auto mem_ptr  = teb.peb_ptr->mem_ptr;
 
-                // Get the physical address from the virtual address.
-                auto paddr_result = teb.peb().mem().translate(vaddr);
-
-                if(!paddr_result)
+                auto slice_result = mem_ptr->slice(vaddr, traits.size());
+                if(!slice_result)
                 {
-                    return paddr_result.error();
+                    return slice_result.error();
                 };
 
-                // Get the data from the physical address.
-                auto data_ptr = reinterpret_cast<std::byte*>(*paddr_result);
-
-                return Scalar
-                {{  // Use the bitness provided by traits to get the correct size.
-                    data_ptr, traits.size()
-                }};
+                // Get the physical address from the virtual address.
+                slice_result->shared([](const auto& span)
+                {
+                    return Scalar
+                    {{  // Use the bitness provided by traits to get the correct size.
+                        span.data(), span.size()
+                    }};
+                });
             },
         };
 

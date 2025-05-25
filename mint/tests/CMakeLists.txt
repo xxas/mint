@@ -16,6 +16,7 @@ function(add_mint_test name)
 
     # Link the libraries to the executable.
     target_link_libraries(test_${name} PRIVATE mint xxas)
+    target_compile_definitions(test_${name} PRIVATE _LIBCPP_ENABLE_EXPERIMENTAL)
 
     # Add the test.
     add_test(NAME mint_${name} COMMAND test_${name})

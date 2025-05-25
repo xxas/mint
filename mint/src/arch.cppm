@@ -14,20 +14,19 @@ import :traits;
 
 namespace mint
 {
+    export using Register  = std::vector<std::byte>;
+    export using RegFile   = std::unordered_map<std::string, Register>;
+
+    export struct ThreadFile
+    {   // Current instruction being executed.
+        std::size_t ip{};
+
+        // Raw underlying bytes for each register file.
+        RegFile reg_file;
+    };
+
     namespace arch
-    {
-        export using Register  = std::vector<std::byte>;
-        export using RegFile   = std::unordered_map<std::string, Register>;
-
-        export struct ThreadFile
-        {   // Current instruction being executed.
-            std::size_t ip{};
-
-            // Raw underlying bytes for each register file.
-            RegFile reg_file;
-        };
-
-        // User-defined keywords.
+    {   // User-defined keywords.
         export template<std::size_t N> struct Keywords
             : xxas::BMap<std::string, Traits, N>
         {
@@ -90,7 +89,7 @@ namespace mint
 
         // Initializes a new register file.
         constexpr auto reg_file() const
-            -> arch::RegFile
+            -> RegFile
         {
             return this->keywords.reg_file();
         };

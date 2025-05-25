@@ -30,7 +30,7 @@ namespace mint
         };
 
         // Dictates the maximum supported data bitness.
-        export enum Bitness: std::uint8_t
+        export enum class Bitness: std::uint8_t
         {
             b8   = 0b00000010, b16  = 0b00000100,
             b32  = 0b00000110, b64  = 0b00001000,

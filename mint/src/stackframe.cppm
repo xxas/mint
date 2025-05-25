@@ -63,9 +63,15 @@ namespace mint
 
             this->sp -= data_size;
 
-            if(auto write_result = mem.write(this->sp, data); !write_result)
+            auto slice_result = mem.slice(this->sp, data_size);
+            if(!slice_result)
             {
-                return write_result.error();
+                return slice_result.error();
+            };
+
+            if(auto copy_result = slice_result->copy(data); copy_result != 0u)
+            {
+                return xxas::error(Err::Address, std::format("Failed to copy {} bytes to memory.", copy_result));
             };
 
             return {};
@@ -80,25 +86,26 @@ namespace mint
                 return xxas::error(Err::Underflow, "Stack underflow: Attempted to pop beyond allocated stack.");
             };
 
-            // Read the bytes from the stack.
-            auto read_result = mem.read(this->sp, size);
-            if(!read_result)
+            auto slice_result = mem.slice(this->sp, size);
+            if(!slice_result)
             {
-                return read_result.error();
+                return slice_result.error();
+            };
+
+            std::vector<std::byte> data{size};
+            if(auto copy_result = slice_result->clone(data); copy_result != 0u)
+            {
+                return xxas::error(Err::Address, std::format("Failed to copy {} bytes to memory.", copy_result));
             };
 
             // Increment the stack pointer back to the top.
             this->sp += size;
 
-            // Copy the memory to the new vector.
-            std::vector<std::byte> bytes{size};
-            std::memcpy(bytes.data(), read_result->data(), size);
-
-            return bytes;
+            return data;
         };
 
         // Push generic data onto the stack.
-        template<class T>  auto push(Memory& mem, const T& value)
+        template<class T> auto push(Memory& mem, const T& value)
             -> Result<>
         {
             constexpr std::size_t alignment = alignof(T);

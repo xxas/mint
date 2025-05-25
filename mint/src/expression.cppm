@@ -20,7 +20,7 @@ namespace mint
         };
 
         // Visit binary operator with operands first and second.
-        template<class T, class U> constexpr auto visit(Operator type, T first, U second)
+        template<class T, class U> constexpr auto visit(const Operator& type, T first, U second)
             -> T
         {
             constexpr static std::array map
@@ -40,10 +40,10 @@ namespace mint
                     };
                     return std::array
                     {   // For any other type use traditional operators.
-                        +[](T a, U b) noexcept { return a + b; },
-                        +[](T a, U b) noexcept { return a - b; },
-                        +[](T a, U b) noexcept { return a * b; },
-                        +[](T a, U b) noexcept { return a / b; },
+                        +[](T a, U b) noexcept(noexcept(a + b)) { return a + b; },
+                        +[](T a, U b) noexcept(noexcept(a - b)) { return a - b; },
+                        +[](T a, U b) noexcept(noexcept(a * b)) { return a * b; },
+                        +[](T a, U b) noexcept(noexcept(a / b)) { return a / b; },
                     };
                 }()
             };
@@ -91,7 +91,7 @@ namespace mint
         explicit Expression(Branch&& branch) : root(std::make_unique<Node>(std::move(branch))) {};
         explicit Expression(NodePtr&& node)  : root(std::move(node)) {};
 
-         constexpr auto constant() const
+        constexpr auto constant() const
             -> std::optional<Leaf>
         {
             return this->root->visit(xxas::meta::Overloads
@@ -143,7 +143,7 @@ namespace mint
                 return xxas::error(ParseErr::Empty, "Expression was passed an empty range of tokens");
             };
 
-            auto get_precedence = [](Operator type)
+            auto get_precedence = [](const Operator type)
                 -> std::int8_t
             {
                 switch(type)
@@ -165,8 +165,8 @@ namespace mint
                 };
             };
 
-            std::vector<NodePtr>  nodes;
-            std::vector<Operator> operators;
+            std::vector<NodePtr>  nodes{};
+            std::vector<Operator> operators{};
 
             nodes.push_back(std::make_unique<Node>(tokens.front().first));
 

@@ -19,66 +19,39 @@ namespace mint
 {   // Process environment block.
     export struct Peb
     {   // References to the CPU and memory.
-        using CpuRef = std::reference_wrapper<Cpu>;
-        using MemRef = std::reference_wrapper<Memory>;
- 
-        CpuRef cpu_ref;
-        MemRef mem_ref;
+        using CpuPtr        = std::shared_ptr<Cpu>;
+        using MemPtr        = std::shared_ptr<Memory>;
+        using ThreadFilePtr = std::shared_ptr<ThreadFile>;
 
-        using ThreadFileRef = std::reference_wrapper<arch::ThreadFile>;
-
-        auto cpu() const
-            -> Cpu&
-        {
-            return this->cpu_ref.get();
-        };
-
-        auto mem() const
-            -> Memory&
-        {
-            return this->mem_ref.get();
-        };
+        CpuPtr cpu_ptr;
+        MemPtr mem_ptr;
 
         template<Arch A> auto thread_file(const std::size_t& thread_id)
-            -> ThreadFileRef
+            -> ThreadFilePtr
         {   // Return a std::reference_wrapper of the ThreadFile.
-            return std::ref(this->cpu_ref.get().try_init<A>(thread_id));
+            return this->cpu_ptr->try_init<A>(thread_id);
         };
     };
  
     // Thread environment block.
     export struct Teb
     {
-        using PebRef        = std::reference_wrapper<Peb>;
-        using CpuRef        = std::reference_wrapper<Cpu>;
-        using MemRef        = std::reference_wrapper<Memory>;
-        using ThreadFileRef = Peb::ThreadFileRef;
+        using PebPtr        = std::shared_ptr<Peb>;
+        using ThreadFilePtr = std::shared_ptr<ThreadFile>;
 
         // Current thread id.
         std::size_t thread_id;
  
         // Reference to process environment block.
-        PebRef peb_ref;
+        PebPtr peb_ptr;
 
         // Stack frame for the current thread.
         StackFrame stack_frame;
 
-        auto peb() const
-            -> Peb&
-        {
-            return this->peb_ref.get();
-        };
-
         template<Arch A> auto thread_file()
-            -> ThreadFileRef
+            -> ThreadFilePtr
         {   // Get the thread file for the current thread id.
-            return this->peb().thread_file<A>(this->thread_id);
-        };
-
-        auto stackframe()
-            -> StackFrame&
-        {
-            return this->stack_frame;
+            return this->peb_ptr->thread_file<A>(this->thread_id);
         };
     };
 };

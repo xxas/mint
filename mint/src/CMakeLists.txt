@@ -47,3 +47,4 @@ target_sources(
 
 target_link_libraries(mint PRIVATE m)
 target_link_libraries(mint PRIVATE xxas)
+target_compile_definitions(mint PRIVATE _LIBCPP_ENABLE_EXPERIMENTAL)

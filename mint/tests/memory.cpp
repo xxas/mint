@@ -2,73 +2,160 @@ import std;
 import xxas;
 import mint;
 
+#include <experimental/simd>
+
+#if defined(_LIBCPP_EXPERIMENTAL_SIMD) || defined(_LIBCPP_SIMD)
+  // Mint uses std::simd
+  #ifndef MINT_SIMD
+    #define MINT_SIMD 1
+  #endif
+
+  // Expose std::experimental::* -> std::*.
+  namespace std{ using namespace experimental; };
+#endif
 
 namespace mint_tests
 {
     using namespace mint;
 
-    // Allocate, write and read capabilities.
+    // Single‐threaded allocate/write/read.
     constexpr auto awr()
     {
-        mint::Memory memory{};
+        Memory memory{};
 
-        // Allocate 256 bytes with read and write.
-        auto alloc_result = memory.alloc(0x100);
+        // Allocate 256 bytes.
+        auto alloc_result = memory.allocate(0x100);
         xxas::assert(alloc_result.has_value(), "alloc_result.has_value()");
 
-        // Create some arbitrary data (same size in bytes as allocation, 256 bytes or 64 u32s).
+        // Prepare 64 u32s of data.
         std::array<std::uint32_t, 64> data{};
         std::ranges::iota(data.begin(), data.end(), 0x200);
 
-        // assert the ability to write.
-        xxas::assert(memory.write(alloc_result.value(), data).has_value(), "memory.write(...).has_value()");
+        // Get a Shared<u32> slice and copy into it.
+        auto slice_result = memory.slice<std::uint32_t>(*alloc_result, 0x100);
+        xxas::assert(slice_result.has_value(), "slice_result.has_value()");
 
-        // Read the first integer.
-        auto read_result = memory.read(alloc_result.value(), sizeof(std::uint32_t));
+        // copy returns number of bytes NOT written; expect zero.
+        xxas::assert_eq(slice_result->copy(data), 0u);
 
-        // Ensure the wrote value in memory is 0x200.
-        xxas::assert_eq(*reinterpret_cast<std::uint32_t*>(read_result->data()), 0x200);
+        // Read back first element.
+        auto first = slice_result->shared([&](auto& span)
+        {
+            return span[0];
+        });
+
+        xxas::assert_eq(first, data[0]);
     };
 
-    // Reading and writing cross threads.
-    constexpr auto wr_ct()
-    {
-        mint::Memory memory{};
 
-        // Allocate 256 bytes with read and write.
-        auto alloc_result = memory.alloc(0x100);
+    constexpr auto concurrent_rw()
+    {
+        Memory memory{};
+
+        // Allocate 4 pages of 256 bytes each.
+        auto alloc_result = memory.allocate(0x100 * 4);
         xxas::assert(alloc_result.has_value(), "alloc_result.has_value()");
 
-        // Get the virtual address of the allocation.
-        auto vaddr = alloc_result.value();
+        // Get shared memory region as u32.
+        auto slice_result = memory.slice<std::uint32_t>(*alloc_result, 0x100 * 4);
+        xxas::assert(slice_result.has_value(), "slice_result.has_value()");
 
-        // Create some more arbitrary data (again, match size of allocation).
-        std::array<std::uint32_t, 64> data{};
-        std::ranges::iota(data.begin(), data.end(), 0xA5);
+        constexpr auto page_u32 = 0x100 / sizeof(std::uint32_t);
 
-        // Thread for writing to memory.
-        std::thread writer([&memory, vaddr, &data]
+        auto rng = std::mt19937_64{0x12345};
+        auto dist = std::uniform_int_distribution<std::size_t>{0, 3};
+
+        auto writers = std::vector<std::thread>{};
+
+        for(auto i = 0; i < 4; ++i)
         {
-            xxas::assert(memory.write(vaddr, data).has_value(), "memory.write(...).has_value()");
-        });
+            writers.emplace_back([&, i]
+            {
+                for(auto w = 0; w < 10; ++w)
+                {
+                    auto page_index = dist(rng);
+                    auto sub = slice_result->subrange(page_index * page_u32, (page_index + 1) * page_u32);
 
-        writer.join();
+                    auto buf = std::array<std::uint32_t, page_u32>{};
+                    buf.fill(static_cast<std::uint32_t>((i << 24) | (page_index << 16) | w));
 
-        std::thread reader([&memory, vaddr, &data]
-        {   // Read the first integer.
-            auto read_result = memory.read(vaddr, sizeof(std::uint32_t));
+                    xxas::assert_eq(sub.copy(buf), 0u);
+                };
+            });
+        };
 
-            // Cast to a std::uint32_t.
-            auto value = *reinterpret_cast<const std::uint32_t*>(read_result->data());
-            xxas::assert_eq(value, 0xA5);
-        });
+        auto readers = std::vector<std::thread>{};
 
-        reader.join();
+        for(auto j = 0; j < 4; ++j)
+        {
+            readers.emplace_back([&]
+            {
+                for(auto r = 0; r < 10; ++r)
+                {
+                    auto page_index = dist(rng);
+                    auto sub = slice_result->subrange(page_index * page_u32, (page_index + 1) * page_u32);
+                    auto out = std::array<std::uint32_t, page_u32>{};
+
+                    xxas::assert_eq(sub.clone(out), 0u);
+
+                    for(auto value: out)
+                    {
+                        xxas::assert_eq(value, out[0]);
+                    };
+                };
+            });
+        };
+
+        for(auto& t: writers)
+        {
+            t.join();
+        };
+
+        for(auto& t: readers)
+        {
+            t.join();
+        };
     };
+
+    constexpr auto simd_par()
+    {
+        Memory memory{};
+
+        // Allocate one page.
+        auto alloc_result = memory.allocate(0x100);
+        xxas::assert(alloc_result.has_value(), "alloc_result.has_value()");
+
+        auto vaddr = *alloc_result;
+
+        auto slice_result = memory.slice<std::uint32_t>(vaddr, 0x100);
+        xxas::assert(slice_result.has_value(), "slice_result.has_value()");
+
+        // SIMD view.
+        auto slice_par = slice_result->par<std::uint32_t>();
+
+        // Write SIMD values.
+        slice_par.exclusive([&](auto& simd_span)
+        {
+            for(auto i = 0; i < simd_span.size(); ++i)
+            {
+                simd_span[i] = std::experimental::native_simd<std::uint32_t>(static_cast<std::uint32_t>(i * 4));
+            };
+        });
+
+        // Verify SIMD values.
+        slice_par.shared([&](const auto& simd_span)
+        {
+            for(auto i = 0; i < simd_span.size(); ++i)
+            {
+                xxas::assert_eq(simd_span[i][0], static_cast<std::uint32_t>(i * 4));
+            };
+        });
+    };
+
 
     constexpr xxas::Tests memory
     {
-       awr, wr_ct,
+        awr, concurrent_rw, simd_par
     };
 };
 

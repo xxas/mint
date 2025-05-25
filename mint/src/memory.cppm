@@ -1,7 +1,20 @@
+module;
+#include <experimental/simd>
+
 export module mint: memory;
 
 import std;
 import xxas;
+
+#if defined(_LIBCPP_EXPERIMENTAL_SIMD) || defined(_LIBCPP_SIMD)
+  // Mint uses std::simd
+  #ifndef MINT_SIMD
+    #define MINT_SIMD 1
+  #endif
+
+  // Expose std::experimental::* -> std::*.
+  namespace std{ using namespace experimental; };
+#endif
 
 /*** **
  **
@@ -12,168 +25,323 @@ import xxas;
  *** **/
 
 namespace mint
-{   
-    // Memory related details.
+{   // Memory related details.
     namespace mem
-    {   
-        // Page protection flags.
-        export enum class Protection: std::uint8_t
-        {
-            Readable    = 0b001,
-            Writtable   = 0b010,
-            Executable  = 0b100,
+    {   // Page protection flags.
+        export enum class Flags: std::uint8_t
+        {   // Manual flags.
+            Read      = 0b001,
+            Write     = 0b010,
+            Execute   = 0b100,
 
-            Rw  = 0b011,
-            Rwe = 0b111,
+            Rw        = 0b011,
+            Re        = 0b101,
+            Rwe       = 0b111,
+            None      = 0b000,
+
+            Default   = Rw,
         };
 
-        constexpr Protection operator|(Protection a, Protection b)
+        export struct Page
         {
-            return static_cast<Protection>(static_cast<std::uint8_t>(a) | static_cast<std::uint8_t>(b));
+            using Mutex = std::shared_ptr<std::shared_mutex>;
+
+            std::uintptr_t vaddr;
+            std::size_t    size;
+            Flags          flags;
+            Mutex          mutex;
+
+            constexpr Page(const std::uintptr_t vaddr, const std::size_t size, const Flags flags = Flags::Rw)
+                :vaddr{vaddr}, size{size}, flags{flags}, mutex{std::make_shared<std::shared_mutex>()} {};
+
+            // Returns if the address provided is within the pages bounds.
+            constexpr auto contains(const std::uintptr_t vaddr)
+            {
+                return this->vaddr <= vaddr && (this->vaddr + this->size) >= vaddr;
+            };
         };
 
-        constexpr bool operator&(Protection a, Protection b)
+        // TODO:
+        // Thread-safe non-owning memory slice.
+        /* template<class T> struct Slice
         {
-            return static_cast<std::uint8_t>(a) & static_cast<std::uint8_t>(b);
-        };
+            using Mutex = std::shared_ptr<std::shared_mutex>;
+            using Span  = std::span<T>;
 
-        export struct Region
-        {
-            std::size_t     paddr;
-            std::size_t     size;
-            mem::Protection flags;
-        };
+            Span  span;
+            Mutex mutex;
+        };*/
 
-        // Default size of a memory page.
-        export constexpr inline std::size_t default_page_size = 0x1000;
+        // Thread-safe non-owning multiple page memory slice container.
+        export template<class T> struct Shared
+        {   // TODO:
+            // Slice of memory within a page.
+            // using Slices = std::vector<Slice<T>>;
+            // Slices slices;
+
+            using Mutex = std::shared_ptr<std::shared_mutex>;
+            using Span  = std::span<T>;
+
+            Span  span;
+            Mutex mutex;
+
+            template<class O> constexpr Shared<O> as() const
+            {
+                return Shared<O>
+                {
+                    .span = std::span<O>
+                    {
+                        reinterpret_cast<O*>(this->span.data()),
+                        this->span.size_bytes() / sizeof(O)
+                    },
+                    .mutex = this->mutex
+                };
+            };
+
+            template<class O = T> constexpr Shared<O> subrange(const std::size_t begin, const std::size_t end)
+            {
+                auto sub = span.subspan(begin, end - begin);
+                return Shared<O>
+                {
+                    .span = std::span<O>(reinterpret_cast<O*>(sub.data()), sub.size_bytes() / sizeof(O)),
+                    .mutex = this->mutex
+                };
+            };
+
+            #ifdef MINT_SIMD
+              // Convert the std::span to use std::native_simd.
+              template<class O = T> constexpr auto par() const
+                  -> Shared<std::native_simd<O>>
+              {
+                  using Simd        = std::native_simd<O>;
+
+                  auto* data        = reinterpret_cast<Simd*>(this->span.data());
+                  std::size_t count = this->span.size_bytes() / sizeof(Simd);
+
+                  return Shared<Simd>
+                  {
+                      .span = std::span<Simd>(data, count),
+                      .mutex = this->mutex
+                  };
+              };
+            #endif
+
+            template<class F> auto shared(F&& funct) const
+            {
+                std::shared_lock lock(*this->mutex);
+                return std::invoke(std::forward<F>(funct), this->span);
+            };
+
+            template<class F> auto exclusive(F&& funct)
+            {
+                std::unique_lock lock(*this->mutex);
+                return std::invoke(std::forward<F>(funct), this->span);
+            };
+
+            // Copies a range of source elements to the underlying span.
+            // Returns the byte count that could not be copied.
+            template<std::ranges::contiguous_range R> auto copy(const R& src)
+                -> std::size_t
+            {   // Lock exclusive access to write the range to the memory span.
+                return this->exclusive([&](auto& span)
+                {   // Get the amount of bytes to copy.
+                    auto dst_bytes     = std::ranges::size(span) * sizeof(T);
+                    auto src_bytes     = std::ranges::size(src) * sizeof(std::ranges::range_value_t<R>);
+                    auto bytes_to_copy = std::min(dst_bytes, src_bytes);
+
+                    // Copy the correct amount of bytes
+                    std::memcpy(std::ranges::data(span), std::ranges::data(src), bytes_to_copy);
+
+                    return bytes_to_copy - src_bytes;
+                });
+            };
+
+            // Clones the underlying std::span to an input range.
+            template<std::ranges::contiguous_range R> auto clone(R& dest) const
+                -> std::size_t
+            {   // Lock shared access to clone the span to the range.
+                return this->shared([&](const auto& span)
+                {   // Get the amount of bytes to copy.
+                    auto src_bytes     = std::ranges::size(span) * sizeof(T);
+                    auto dst_bytes     = std::ranges::size(dest) * sizeof(std::ranges::range_value_t<R>);
+                    auto bytes_to_copy = std::min(dst_bytes, src_bytes);
+
+                    // Copy the correct amount of bytes
+                    std::memcpy(std::ranges::data(dest), std::ranges::data(span), bytes_to_copy);
+
+                    return bytes_to_copy - src_bytes;
+                });
+            };
+        };
     };
 
     export struct Memory
-    {   // Virtual memory regions.
-        using MemoryMap   = std::unordered_map<std::size_t, mem::Region>;
+    {
+        using VMSpan    = std::pair<std::uintptr_t, std::size_t>;
+        using PageVec   = std::vector<mem::Page>;
+        using BytesVec  = std::vector<std::byte>;
+        using FreeVec   = std::vector<VMSpan>;
 
-        // Physical memory bytes.
-        using PhysicalMem = std::vector<std::byte>;
+        // Next free address.
+        std::atomic_uintptr_t next_addr;
+        std::uintptr_t        base_addr;
 
-        // Atomic-safe next virtual address.
-        using AtomicAddr  = std::atomic<std::size_t>;
+        // Page mutexes and flags.
+        PageVec               pages;
 
-        MemoryMap            vmap;
-        PhysicalMem          pmem;
-        AtomicAddr           next_vaddr = 0x1000;
-        std::size_t          page_len   = mem::default_page_size;
-        std::recursive_mutex mem_mutex;
+        // Freed memory spans.
+        FreeVec               freed;
+
+        // Raw physical bytes.
+        BytesVec              bytes;
+
+        // Size of a memory page.
+        std::size_t           page_size;
+
+        // Locks during resizing operations.
+        std::mutex            mutex;
 
         enum class Err: std::uint8_t
         {
-            Alloc, VAddr, Stack, Access
+            OutOfRange,
+            NoPermission,
         };
 
         template<class T> using Result = xxas::Result<T, Err>;
 
-        // Align a virtual address to page boundaries.
-        constexpr auto align(std::size_t virtual_addr) const noexcept
-            -> std::size_t
+        constexpr Memory(const std::uintptr_t base_addr = 0x1000, const std::size_t page_sz = 0x2000)
+            : next_addr(base_addr), page_size(page_sz), base_addr(base_addr)
         {
-            return (virtual_addr + this->page_len - 1) & ~(this->page_len - 1);
+            bytes.reserve(1024 * 1024);
         };
 
-        // allocate a size of memory with flags and returns a virtual address corresponding.
-        auto alloc(std::size_t size, mem::Protection flags = mem::Protection::Rw)
-            -> Result<std::size_t>
+        // Aligned allocation of a page with flags
+        constexpr auto allocate(const std::size_t size, const mem::Flags flags = mem::Flags::Default, const std::size_t alignment = alignof(std::max_align_t))
+            -> Result<std::uintptr_t>
         {
-            if(size == 0uz)
-            {
-                return xxas::error(Err::Alloc, "Invalid allocation: size must be nonzero");
-            }
+            std::uintptr_t addr = this->next_addr.fetch_add(size + alignment);
+            std::uintptr_t aligned = (addr + alignment - 1) & ~(alignment - 1);
+            std::size_t offset     = aligned - 0x1000; // base address assumed
 
-            size = this->align(size);
+            if (this->bytes.size() < offset + size)
+            {   // Lock the resizing mutex.
+                std::scoped_lock lock(this->mutex);
 
-            std::scoped_lock lock(this->mem_mutex);  // Lock for thread safety.
-
-            std::size_t paddr = this->pmem.size();
-            this->pmem.resize(paddr + size);
-
-            std::size_t vaddr = this->align(this->next_vaddr);
-            this->next_vaddr  = vaddr + size;
-
-            this->vmap[vaddr] = mem::Region{ paddr, size, flags };
-
-            return vaddr;
-        };
-
-        // Translate virtual address to physical address.
-        auto translate(std::size_t vaddr)
-            -> Result<std::size_t>
-        {
-            std::scoped_lock lock(this->mem_mutex);
-
-            std::size_t vaddr_base = this->align(vaddr);
-
-            auto it = this->vmap.find(vaddr_base);
-            if (it == this->vmap.end())
-            {
-                return xxas::error(Err::VAddr, "Invalid virtual address");
-            }
-
-            std::size_t offset = vaddr - vaddr_base;
-            if (offset >= it->second.size)
-            {
-                return xxas::error(Err::VAddr, "Address out of bounds");
-            }
-
-            return it->second.paddr + offset;
-        };
-
-        // Read from virtual address and size.
-        auto read(std::size_t vaddr, std::size_t size)
-            -> Result<std::span<std::byte>>
-        {
-            std::scoped_lock lock(this->mem_mutex);
-
-            auto result = this->translate(vaddr);
-            if (!result)
-            {
-                return result.error();
+                // Resize to make space for the allocation.
+                this->bytes.resize(offset + size);
             };
 
-            auto paddr = *result;
-
-            auto region_it = vmap.find(this->align(vaddr));
-            if (region_it == vmap.end() || !(region_it->second.flags & mem::Protection::Readable))
+            this->pages.push_back(mem::Page
             {
-                return xxas::error(Err::Access, "Memory read access denied");
-            };
+                aligned,
+                size,
+                flags,
+            });
 
-            return std::span<std::byte>
-            {
-                &this->pmem[paddr], size
-            };
+            return aligned;
         };
 
-        // Write memory from a span
-        template<std::ranges::contiguous_range T> auto write(std::size_t vaddr, const T& range)
-            -> Result<void>
+        // Deallocate memory by virtual address
+        constexpr void free(const std::uintptr_t vaddr)
         {
-            std::scoped_lock lock(this->mem_mutex);
+            std::scoped_lock lock(this->mutex);
 
-            auto result = this->translate(vaddr);
-            if (!result)
+            auto page_it = std::ranges::find_if(this->pages, [&](auto& page)
             {
-                return result.error();
-            }
+                return page.vaddr == vaddr;
+            });
 
-            auto paddr = *result;
-
-            auto region_it = vmap.find(this->align(vaddr));
-            if (region_it == vmap.end() || !(region_it->second.flags & mem::Protection::Writtable))
+            if(page_it == this->pages.end())
             {
-                return xxas::error(Err::Access, "Memory write access denied");
-            }
+                return;
+            };
 
-            std::memcpy(&this->pmem[paddr], std::ranges::data(range), std::ranges::size(range) * sizeof(std::ranges::range_value_t<T>));
+            auto vm_span = VMSpan(page_it->vaddr, page_it->size);
+            this->pages.erase(page_it);
 
-            return {};
+            auto insert_pos = std::ranges::lower_bound(this->freed, vm_span.first, {}, &VMSpan::first);
+
+            if(insert_pos != this->freed.begin())
+            {
+                auto prev = std::prev(insert_pos);
+                if(prev->first + prev->second == vm_span.first)
+                {
+                    vm_span.first = prev->first;
+                    vm_span.second += prev->second;
+                    this->freed.erase(prev);
+                };
+            };
+
+            if(insert_pos != this->freed.end() && vm_span.first + vm_span.second == insert_pos->first)
+            {
+                vm_span.second += insert_pos->second;
+                insert_pos = this->freed.erase(insert_pos);
+            };
+
+            this->freed.insert(insert_pos, vm_span);
+
+            std::uintptr_t max_vaddr = 0;
+            for(const auto& page: this->pages)
+            {
+                max_vaddr = std::max(max_vaddr, page.vaddr + page.size);
+            };
+
+            for(auto it = this->freed.rbegin(); it != this->freed.rend(); ++it)
+            {
+                std::uintptr_t span_end = it->first + it->second;
+                if(span_end == this->next_addr.load())
+                {
+                    this->next_addr.store(it->first);
+                    this->bytes.resize(it->first);
+                    this->freed.erase(std::next(it).base());
+                }
+                else break;
+            };
         };
+
+        // Get a thread-safe shared memory slice.
+        template<class T = std::byte> constexpr auto slice(const std::uintptr_t vaddr, const std::size_t vsize)
+            -> Result<mem::Shared<T>>
+        {
+            for(auto& page: this->pages)
+            {
+                if (page.contains(vaddr))
+                {
+                    std::size_t offset = vaddr - page.vaddr;
+                    return mem::Shared<T>
+                    {
+                        .span = std::span<T>
+                        {
+                            reinterpret_cast<T*>(bytes.data() + (page.vaddr - 0x1000) + offset),
+                            vsize / sizeof(T)
+                        },
+                        .mutex = page.mutex
+                    };
+                };
+            };
+
+            return xxas::error(Err::OutOfRange, std::format("vaddr of {:#x} is out of range", vaddr));
+        };
+
+      protected:
+        constexpr auto peek(std::uintptr_t vaddr)
+            -> Result<std::uintptr_t>
+        {
+            for(auto& page: this->pages)
+            {
+                if (page.contains(vaddr))
+                {
+                    std::size_t offset   = vaddr - page.vaddr;
+                    std::size_t absolute = (page.vaddr - this->base_addr) + offset;
+
+                    if(absolute < this->bytes.size())
+                    {
+                        return *reinterpret_cast<std::uintptr_t*>(this->bytes.data() + absolute);
+                    };
+                };
+            };
+
+            return xxas::error(Err::OutOfRange, std::format("vaddr of {:#x} is out of range", vaddr));
+        }
     };
 };
