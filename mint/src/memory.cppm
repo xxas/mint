@@ -173,6 +173,9 @@ namespace mint
                 });
             };
         };
+
+        export constexpr inline std::size_t default_base_addr  = 0x2000;
+        export constexpr inline std::size_t default_page_size  = 0x1000;
     };
 
     export struct Memory
@@ -209,7 +212,7 @@ namespace mint
 
         template<class T> using Result = xxas::Result<T, Err>;
 
-        constexpr Memory(const std::uintptr_t base_addr = 0x1000, const std::size_t page_sz = 0x2000)
+        constexpr Memory(const std::uintptr_t base_addr = mem::default_base_addr, const std::size_t page_sz = mem::default_page_size)
             : next_addr(base_addr), page_size(page_sz), base_addr(base_addr)
         {
             bytes.reserve(1024 * 1024);

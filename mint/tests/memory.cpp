@@ -50,7 +50,7 @@ namespace mint_tests
 
     constexpr auto concurrent_rw()
     {
-        Memory memory(0x1000, 0x100);
+        Memory memory(mem::default_base_addr, 0x100);
 
         // Allocate 4 pages of 256 bytes each.
         auto alloc_result = memory.allocate(0x100 * 4);
