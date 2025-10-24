@@ -141,17 +141,24 @@ namespace xxas
                 return *this;
             };
 
-            // If `E` is not a duplicate type, returns an extended template for `C<Ts..., E>`, otherwise returns `C<Ts...>`.
-            template<class E> constexpr auto dedup_extend(Template<E>) const noexcept
-            {
-                return std::conditional_t<meta::same_as<E, Ts...>, Template<C<Ts...>>, Extend<E>>{};
-            };
-
-            // Recursively extends the template types for `C<Ts...>` with types from `OC<E, Es...>` that are not duplicates.
+            // Recursively unwraps the Template container types `Template<OC<E, Es...>>` and extends `C<Ts...>` with types that are not duplicates.
             template<template<class...> class OC, class E, class... Es> constexpr auto dedup_extend(Template<OC<E, Es...>>) const noexcept
                 requires meta::same_as<OC<E, Es...>, C<E, Es...>, Template<E, Es...>>
             {
                 return this->dedup_extend(Template<E>{}).dedup_extend(Template<Es...>{});
+            };
+
+            // Recursively extends the template types for `C<Ts...>` with types from `OC<E, Es...>` that are not duplicates.
+            template<template<class...> class OC, class E, class... Es> constexpr auto dedup_extend(OC<E, Es...>) const noexcept
+                requires meta::same_as<OC<E, Es...>, C<E, Es...>, Template<E, Es...>>
+            {
+                return this->dedup_extend(Template<E>{}).dedup_extend(Template<Es...>{});
+            };
+
+            // If `E` is not a duplicate type, returns an extended template for `C<Ts..., E>`, otherwise returns `C<Ts...>`.
+            template<class E> constexpr auto dedup_extend(Template<E>) const noexcept
+            {
+                return std::conditional_t<meta::same_as<E, Ts...>, Template<C<Ts...>>, Extend<E>>{};
             };
 
             template<class... Es> constexpr auto operator==(Template<Es...>) const noexcept

@@ -3,12 +3,12 @@ import xxas;
 
 namespace xxas_tests
 {
-    constexpr auto find_basic()
+    constexpr auto find()
     {
         constexpr static xxas::BMap<std::string, int, 2> map
         {
-            std::pair{ "123", 123 },
-            std::pair{ "321",  321 },
+            std::pair{"123", 123},
+            std::pair{"321", 321},
         };
 
         constexpr auto it_1 = map.find("123");
@@ -25,7 +25,7 @@ namespace xxas_tests
 
     constexpr xxas::Tests bmap
     {
-        find_basic,
+        find,
     };
 };
 

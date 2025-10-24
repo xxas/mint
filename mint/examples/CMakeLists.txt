@@ -10,23 +10,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Create the `xxas` library.
-add_library(xxas)
-target_sources(
-    xxas         PUBLIC FILE_SET
-    xxas_modules TYPE CXX_MODULES FILES
+function(add_mint_example name)
+    # Create the example executable.
+    add_executable(example_${name} ${name}.cpp)
 
-    # Target modules.
-    mod.cppm
-    meta.cppm
-    format.cppm
-    error.cppm
-    tests.cppm
-    fnv1a.cppm
-    multiarray.cppm
-    bmultimap.cppm
-    bmap.cppm
-    cmap.cppm
-)
+    # Link the libraries to the executable.
+    target_link_libraries(example_${name} PRIVATE mint xxas)
+endfunction()
 
-target_link_libraries(xxas PRIVATE m)
+add_mint_example(simple)

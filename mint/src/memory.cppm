@@ -61,24 +61,9 @@ namespace mint
             };
         };
 
-        // TODO:
-        // Thread-safe non-owning memory slice.
-        /* template<class T> struct Slice
-        {
-            using Mutex = std::shared_ptr<std::shared_mutex>;
-            using Span  = std::span<T>;
-
-            Span  span;
-            Mutex mutex;
-        };*/
-
-        // Thread-safe non-owning multiple page memory slice container.
+        // Thread-safe non-owning shared page memory slice container.
         export template<class T> struct Shared
-        {   // TODO:
-            // Slice of memory within a page.
-            // using Slices = std::vector<Slice<T>>;
-            // Slices slices;
-
+        {
             using Mutex = std::shared_ptr<std::shared_mutex>;
             using Span  = std::span<T>;
 
@@ -178,6 +163,12 @@ namespace mint
         export constexpr inline std::size_t default_page_size  = 0x1000;
     };
 
+    export struct MemoryDescriptor
+    {
+        std::uintptr_t base_addr{ mem::default_base_addr };
+        std::size_t    page_size{ mem::default_page_size };
+    };
+
     export struct Memory
     {
         using VMSpan    = std::pair<std::uintptr_t, std::size_t>;
@@ -222,9 +213,9 @@ namespace mint
         constexpr auto allocate(const std::size_t size, const mem::Flags flags = mem::Flags::Default, const std::size_t alignment = alignof(std::max_align_t))
             -> Result<std::uintptr_t>
         {
-            std::uintptr_t addr = this->next_addr.fetch_add(size + alignment);
+            std::uintptr_t addr    = this->next_addr.fetch_add(size + alignment - 1);
             std::uintptr_t aligned = (addr + alignment - 1) & ~(alignment - 1);
-            std::size_t offset     = aligned - 0x1000; // base address assumed
+            std::size_t offset     = aligned - this->base_addr;
 
             if (this->bytes.size() < offset + size)
             {   // Lock the resizing mutex.
@@ -291,14 +282,16 @@ namespace mint
 
             for(auto it = this->freed.rbegin(); it != this->freed.rend(); ++it)
             {
-                std::uintptr_t span_end = it->first + it->second;
-                if(span_end == this->next_addr.load())
+                const auto span_end = it->first + it->second;
+
+                if(span_end != this->next_addr.load())
                 {
-                    this->next_addr.store(it->first);
-                    this->bytes.resize(it->first);
-                    this->freed.erase(std::next(it).base());
-                }
-                else break;
+                    break;
+                };
+
+                this->next_addr.store(it->first);
+                this->bytes.resize(it->first);
+                this->freed.erase(std::next(it).base());
             };
         };
 
@@ -315,7 +308,7 @@ namespace mint
                     {
                         .span = std::span<T>
                         {
-                            reinterpret_cast<T*>(bytes.data() + (page.vaddr - 0x1000) + offset),
+                            reinterpret_cast<T*>(bytes.data() + (page.vaddr - this->base_addr) + offset),
                             vsize / sizeof(T)
                         },
                         .mutex = page.mutex

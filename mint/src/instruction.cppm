@@ -33,4 +33,6 @@ namespace mint
             return semantics::compat(span, this->operands);
         };
     };
+
+    export using Insns = std::vector<Instruction>; 
 };

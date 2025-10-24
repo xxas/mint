@@ -20,7 +20,7 @@ namespace mint
         };
 
         // Visit binary operator with operands first and second.
-        template<class T, class U> constexpr auto visit(const Operator& type, T first, U second)
+        template<class T, class U> constexpr auto visit(const Operator type, T first, U second)
             -> T
         {
             constexpr static std::array map
@@ -65,7 +65,7 @@ namespace mint
             NodePtr  right;
         };
 
-        export using Leaf   = Scalar;
+        export using Leaf = Scalar;
         struct Node: std::variant<Leaf, Branch>
         {
             using std::variant<Leaf, Branch>::variant;
@@ -172,7 +172,7 @@ namespace mint
 
             for(auto& [scalar, op]: std::ranges::subrange(tokens.begin() + 1u, tokens.end()))
             {
-                while (!operators.empty() && get_precedence(operators.back()) >= get_precedence(op))
+                while(!operators.empty() && get_precedence(operators.back()) >= get_precedence(op))
                 {
                     auto right = std::move(nodes.back()); nodes.pop_back();
                     auto left  = std::move(nodes.back()); nodes.pop_back();

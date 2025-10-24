@@ -8,3 +8,4 @@ export import :fnv1a;
 export import :multiarray;
 export import :bmultimap;
 export import :bmap;
+export import :cmap;

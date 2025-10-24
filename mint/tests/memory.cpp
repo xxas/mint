@@ -138,7 +138,7 @@ namespace mint_tests
         {
             for(auto i = 0; i < simd_span.size(); ++i)
             {
-                simd_span[i] = std::experimental::native_simd<std::uint32_t>(static_cast<std::uint32_t>(i * 4));
+                simd_span[i] = std::native_simd<std::uint32_t>(static_cast<std::uint32_t>(i * 4));
             };
         });
 

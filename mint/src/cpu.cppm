@@ -15,29 +15,57 @@ import :arch;
 
 namespace mint
 {
-    export struct Cpu
-    {   // Underlying bytes of each register.
-        using Register      = Register;
-        using RegFile       = RegFile;
-        using ThreadFilePtr = std::shared_ptr<ThreadFile>;
+    export struct ThreadData
+    {   // Current instruction being executed.
+        std::size_t ip;
 
-        // Register-files, mapping of register id to the underlying bytes.
-        using ThreadFiles = std::unordered_map<std::size_t, ThreadFilePtr>;
+        // Raw underlying bytes for each register file.
+        Registers registers;
+    };
 
-        // Register files for each thread id.
-        ThreadFiles   thread_files;
+    export template<const auto& arch> struct Thread
+    {   // Inner std::thread data.
+        std::thread inner;
 
-        template<Arch a> auto try_init(const std::size_t thread_id)
-            -> ThreadFilePtr
-        {   // Try emplacing a newly constructed thread file if one doesn't already exists for the thread id.
-            auto [it, _] = this->thread_files.try_emplace(thread_id,
-            ThreadFile
+        // Local thread data.
+        ThreadData  data;
+
+        // Default initialization of thread data.
+        constexpr static auto from(auto&& funct)
+        {
+            auto data = ThreadData
             {
-                .reg_file = a.reg_file()
-            });
+                .ip        = 0,
+                .registers = arch.get_registers(),
+            };
+
+            return Thread
+            {
+                std::thread(std::move(funct)), data,
+            };
+        };
+    };
+
+    export template<const auto& arch> struct Cpu
+    {
+        using ThreadVec = std::vector<Thread<arch>>;
+        ThreadVec threads;
+
+        // Initialize a new thread.
+        auto new_thread(auto&& funct)
+            -> Thread<arch>&
+        {   // Try emplacing a newly constructed thread file if one doesn't already exists for the thread id.
+            auto [it, _] = this->threads.emplace_back(Thread<arch>::from(std::move(funct)));
 
             // Return the thread-file.
-            return it->second;
+            return it;
         };
+
+        // Returns a threads data by id.
+        auto get_thread_data(const std::size_t N)
+            -> ThreadData
+        {
+            return this->threads[N].data;
+        }
     };
 };

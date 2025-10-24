@@ -11,7 +11,6 @@ namespace mint_tests
         traits::Direction::Src,
         traits::Source::Immediate,
         traits::Bitness::b64,
-        traits::Format::Integral,
     };
 
     constexpr Traits src_imm_f64 =
@@ -19,7 +18,6 @@ namespace mint_tests
         traits::Direction::Src,
         traits::Source::Immediate,
         traits::Bitness::b64,
-        traits::Format::Floating,
     };
 
     constexpr auto definition()

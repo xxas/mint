@@ -18,11 +18,11 @@ import :arch;
 
 namespace mint
 {
-    struct JitCompiler
+    export struct JitCompiler
     {
         enum Err: std::uint8_t
         {
-            Empty, Missing,
+            Missing,
         };
 
         // Jit compiler input instructions.
@@ -30,25 +30,18 @@ namespace mint
 
         // Jit compiler output bindings.
         using Output = std::vector<Binding>;
-
         using Result = xxas::Result<Output, Err>;
 
         // Just-in-time compiles loose instruction information into direct function calls for a thread.
-        template<Arch Arch> constexpr static auto from(Input& input, Teb& teb)
+        template<const auto& arch> constexpr static auto from(const Input& input, const ThreadContext<arch>& ctx)
             -> Result
-        {
-            if(input.empty())
-            {
-                return xxas::error(Err::Empty, "Not enough instructions to preform JIT compilation");
-            };
-
-            // JIT output bindings.
+        {   // JIT output bindings.
             Output output{};
-            for(Instruction& insn: input)
+            for(const auto& insn: input)
             {   // Evaluate each operand.
                 auto results = std::ranges::transform(insn.operands, [&](Operand& operand)
                 {
-                    return operand.evaluate<Arch.reg_file>(teb);
+                    return operand.evaluate(ctx);
                 });
 
                 // Return the first error found in the evaluated operands.
@@ -64,9 +57,9 @@ namespace mint
                 });
 
                 // Find the iterator for the instruction.
-                auto& funct_it  = Arch.insns.find(insn.opcode);
+                auto funct_it  = arch.insns.find(insn.opcode);
 
-                if(funct_it == Arch.insns.cend())
+                if(funct_it == arch.insns.cend())
                 {
                     return xxas::error(Err::Missing, std::format("Cannot find a matching function for opcode: {}", insn.opcode));
                 };
@@ -76,6 +69,8 @@ namespace mint
                 {
                     return Binding::create(funct, scalars);
                 });
+
+                output.push_back(binding);
             };
             // Return our built functions.
             return output;

@@ -18,3 +18,5 @@ export import :operand;
 export import :instruction;
 
 export import :binding;
+export import :jit_compiler;
+export import :instance;

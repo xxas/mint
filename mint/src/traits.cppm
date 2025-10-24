@@ -14,14 +14,15 @@ import xxas;
 namespace mint
 {
     namespace traits
-    {
+    {   // Expected direction of operation on operand.
+        // Only used in semantics validation.
         export enum class Direction: std::uint8_t
         {
             Src   = 0b00000000, Dest = 0b10000000,
             Mask  = 0b10000000,
         };
 
-        // Dictates where data can be sourced from.
+        // Where the operand is stored during runtime.
         export enum class Source: std::uint8_t
         {
             Register = 0b00010000, Immediate = 0b00100000,
@@ -29,7 +30,7 @@ namespace mint
             None     = 0b00000000, Mask      = 0b01110000
         };
 
-        // Dictates the maximum supported data bitness.
+        // Bitness of the operand.
         export enum class Bitness: std::uint8_t
         {
             b8   = 0b00000010, b16  = 0b00000100,
@@ -38,11 +39,10 @@ namespace mint
             b512 = 0b00001110, Mask = 0b00001110,
         };
 
-        // Dictates 
+        // Extra bit.
         export enum class Format: std::uint8_t
         {
-            Integral = 0b00000000, Floating = 0b00000001,
-            Mask     = 0b00000001,
+            Mask = 0b00000001,
         };
 
         template<class T, class... Ts> constexpr auto popcount()
@@ -103,7 +103,7 @@ namespace mint
         };
 
         // Ensures compatibility with the provided `other` traits.
-        constexpr auto compat(const Traits& other) const noexcept
+        constexpr auto compat(const Traits other) const noexcept
         {   // Ensure format is equal, bitness isn't exceeded, and sources intersect.
             bool eq_format  = this->get<traits::Format>() == other.get<traits::Format>();
             bool eq_bitness = this->get<traits::Bitness>() >= other.get<traits::Bitness>();

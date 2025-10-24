@@ -33,7 +33,7 @@ namespace xxas
             return Offset;
         };
 
-        template <std::ranges::range R> constexpr auto operator()(const R& range) const
+        template <std::ranges::range R> constexpr auto operator()(const R& range, const H seed = Prime) const
           -> const ValueType
         {
             static_assert(std::is_integral_v<std::ranges::range_value_t<R>> || std::is_same_v<std::ranges::range_value_t<R>, char>,
@@ -42,18 +42,18 @@ namespace xxas
             ValueType hash = Offset;
 
             std::ranges::for_each(range, [&](const auto& K)
-                { hash = (hash ^ static_cast<H>(K)) * Prime; });
+                { hash = (hash ^ static_cast<H>(K)) * seed; });
 
             return hash;
         };
 
-        template<class T> constexpr auto operator()(const T& K) const
+        template<class T> constexpr auto operator()(const T& K, const H seed = Prime) const
           -> const ValueType
         {
             return (Offset ^ static_cast<H>(K)) * Prime;
         };
 
-        template<class T> constexpr static auto hash(T&& K)
+        template<class T> constexpr static auto hash(T&& K, const H seed = Prime)
             -> const ValueType
         {
             return std::invoke(Fnv1a{}, std::forward<T>(K));

@@ -33,7 +33,7 @@ namespace mint_test
         xxas::assert_eq(expression.has_value(), true);
  
         // Evaluate and cast the expression result to double.
-        auto result = (*expression).evaluate<double>();
+        auto result = expression->evaluate<double>();
  
         // (0.5 * mass * velocity * velocity) + 10 - (5.0 / pi);
         double expected = (half * mass * velocity * velocity) + ten - (five / pi);
