@@ -1,5 +1,7 @@
 # Mint
 
+[![linux-x64](https://github.com/xxas/mint/actions/workflows/linux-x64.yml/badge.svg)](https://github.com/xxas/mint/actions/workflows/linux-x64.yml)
+
 **Mint** is a high-level C++26 framework for simulating instruction set architectures. Providing tools for lexical analysis, intermediate language transformation, syntax validation, multi-threaded execution, and memory management.
 
 # Reason
