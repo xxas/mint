@@ -159,9 +159,9 @@ namespace mint
             this->sp = this->bp;
 
             return this->pop<std::size_t>(mem).and_then([this](std::size_t old_bp)
-              {   // Restore previous base pointer.
-                  this->bp = old_bp;
-              });
+            {   // Restore previous base pointer.
+                this->bp = old_bp;
+            });
         };
     };
 };
