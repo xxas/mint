@@ -3,6 +3,7 @@ export module mint: cpu;
 import std;
 import xxas;
 import :memory;
+import :stackframe;
 import :traits;
 import :arch;
 
@@ -21,17 +22,25 @@ namespace mint
 
         // Raw underlying bytes for each register file.
         Registers registers;
+
+        // Thread stackframe.
+        StackFrame stackframe;
     };
 
     export template<const auto& arch> struct Thread
-    {   // Inner std::thread data.
+    {
+        using Inner    = std::thread;
+        using ThreadId = std::thread::id;
+
+        // Inner std::thread data.
         std::thread inner;
 
-        // Local thread data.
+        // Thread registers, stack frame.
         ThreadData  data;
 
         // Default initialization of thread data.
         constexpr static auto from(auto&& funct)
+            -> Thread<arch>
         {
             auto data = ThreadData
             {
@@ -41,9 +50,22 @@ namespace mint
 
             return Thread
             {
-                std::thread(std::move(funct)), data,
+                .inner = std::thread(std::move(funct)),
+                .data  = data,
             };
         };
+
+        auto get_id() const noexcept
+            -> std::optional<std::thread::id>
+        {
+            return this->inner.get_id();
+        };
+
+        auto operator==(const Thread<arch>& other) const noexcept
+            -> bool
+        {
+            return this->get_id() == other.get_id();
+        }
     };
 
     export template<const auto& arch> struct Cpu
@@ -51,21 +73,24 @@ namespace mint
         using ThreadVec = std::vector<Thread<arch>>;
         ThreadVec threads;
 
-        // Initialize a new thread.
+        // Initializes a new thread and returns the index.
         auto new_thread(auto&& funct)
-            -> Thread<arch>&
-        {   // Try emplacing a newly constructed thread file if one doesn't already exists for the thread id.
-            auto [it, _] = this->threads.emplace_back(Thread<arch>::from(std::move(funct)));
+            -> std::size_t
+        {
+            this->threads.push_back(Thread<arch>::from(std::move(funct)));
 
-            // Return the thread-file.
-            return it;
+            // Return the thread id.
+            return this->threads.back().get_id();
         };
 
-        // Returns a threads data by id.
-        auto get_thread_data(const std::size_t N)
-            -> ThreadData
+        // Return an iterator to the thread with the given id.
+        auto find_thread(const std::size_t id)
+            -> ThreadVec::iterator
         {
-            return this->threads[N].data;
-        }
+            return std::ranges::find_if(this->threads, [id](const auto& thread)
+            {
+                  return thread.get_id() == id;
+            });
+        };
     };
 };

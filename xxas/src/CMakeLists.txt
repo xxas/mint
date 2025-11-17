@@ -23,6 +23,7 @@ target_sources(
     error.cppm
     tests.cppm
     fnv1a.cppm
+    serial.cppm
     multiarray.cppm
     bmultimap.cppm
     bmap.cppm

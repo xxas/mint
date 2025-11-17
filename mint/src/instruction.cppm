@@ -27,12 +27,12 @@ namespace mint
         Operands  operands;
 
         // Validate the semantics of the provided operands against the guide slice.
-        template<std::size_t N> constexpr auto compat(const std::span<const semantics::Guide, N>& span) const noexcept
+        template<std::size_t N> constexpr auto compat(const std::span<const semantics::Guide, N> span) const noexcept
             -> bool
         {
             return semantics::compat(span, this->operands);
         };
     };
 
-    export using Insns = std::vector<Instruction>; 
+    export using Insns = std::vector<Instruction>;
 };
