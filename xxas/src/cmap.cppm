@@ -1,5 +1,3 @@
-
-
 export module xxas: cmap;
 
 import std;
@@ -14,13 +12,28 @@ namespace xxas
         using Hasher    = Fnv1a<Hash>;
         using Entry     = std::pair<K, T>;
         using Entries   = std::array<Entry, N>;
-        using Indicing  = std::array<std::size_t, N>;
+
+        // Power-of-2 index table sized at 2x entry count.
+        static constexpr std::size_t TableSize = std::bit_ceil(N < 2 ? std::size_t{2} : N * 2);
+        static constexpr std::size_t TableBits = std::bit_width(TableSize) - 1;
+
+        using Indicing  = std::array<std::size_t, TableSize>;
 
         constexpr static std::size_t NPos = std::numeric_limits<std::size_t>::max();
 
         Entries  entries{};
         Indicing index{};
         Hash     mask{};
+
+        // Map a masked hash to a table index using Fibonacci mixing.
+        // Multiplying by the golden-ratio constant and taking the top bits
+        // mixes all bits uniformly, allowing the mask to select discriminating
+        // bits from anywhere in the 64-bit hash — not just the low positions.
+        static constexpr auto to_index(Hash h) -> std::size_t
+        {
+            h *= 0x9E3779B97F4A7C15ULL;
+            return static_cast<std::size_t>(h >> (64 - TableBits));
+        };
 
         template<class... Ks, class... Ts> consteval CMap(std::pair<Ks, Ts>&&... in)
             requires(std::convertible_to<Ks, K> && ...) && (std::convertible_to<Ts, T> && ...)
@@ -44,8 +57,8 @@ namespace xxas
             std::ranges::fill(this->index, NPos);
             for(std::size_t i = 0; i < N; ++i)
             {
-                const auto slot = hashes[i] & this->mask;
-                this->index[slot % N] = i;
+                const auto slot = to_index(hashes[i] & this->mask);
+                this->index[slot] = i;
             };
         };
 
@@ -63,12 +76,12 @@ namespace xxas
                     proj[i] = hashes[i] & test;
                 };
 
-                // Check for uniqueness.
+                // Check for uniqueness of final table positions after mixing.
                 for(std::size_t i = 0; i < N && unique; ++i)
                 {
                     for (std::size_t j = i + 1; j < N; ++j)
                     {
-                        if (proj[i] == proj[j])
+                        if (to_index(proj[i]) == to_index(proj[j]))
                         {
                             unique = false;
                         };
@@ -88,8 +101,7 @@ namespace xxas
             requires std::convertible_to<In, K>
         {
             const auto hash = Hasher::hash<K>(std::forward<In>(key));
-            const auto slot = hash & this->mask;
-            const auto pos  = slot % N;
+            const auto pos  = to_index(hash & this->mask);
 
             const auto idx = this->index[pos];
             if(idx == NPos || this->entries[idx].first != key)
@@ -126,5 +138,4 @@ namespace xxas
 
     export template<class... Ks, class... Ts> requires meta::same_as<std::remove_cvref_t<Ks...[0]>, const char*> CMap(std::pair<Ks, Ts>&&...)
         -> CMap<std::string_view, Ts...[0], sizeof...(Ks)>;
-}
-
+};

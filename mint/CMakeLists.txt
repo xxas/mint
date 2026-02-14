@@ -13,3 +13,4 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Add the `mint` subdirectories.
 add_subdirectory(src)
 add_subdirectory(tests)
+add_subdirectory(examples)
