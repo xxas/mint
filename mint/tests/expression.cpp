@@ -19,13 +19,13 @@ namespace mint_test
 
         expr::Tokens tokens
         {
-            {Scalar::from(half), {}},
-            {Scalar::from(mass),      expr::Operator::Mul},
-            {Scalar::from(velocity),  expr::Operator::Mul},
-            {Scalar::from(velocity),  expr::Operator::Mul},
-            {Scalar::from(ten),       expr::Operator::Add},
-            {Scalar::from(five),      expr::Operator::Sub},
-            {Scalar::from(pi),        expr::Operator::Div},
+            {expr::Constant(half), {}},
+            {expr::Constant(mass),      expr::Operator::Mul},
+            {expr::Constant(velocity),  expr::Operator::Mul},
+            {expr::Constant(velocity),  expr::Operator::Mul},
+            {expr::Constant(ten),       expr::Operator::Add},
+            {expr::Constant(five),      expr::Operator::Sub},
+            {expr::Constant(pi),        expr::Operator::Div},
         };
  
         // Parse the tokens and check the result.
@@ -33,7 +33,7 @@ namespace mint_test
         xxas::assert_eq(expression.has_value(), true);
  
         // Evaluate and cast the expression result to double.
-        auto result = expression->evaluate<double>();
+        auto result = *expression->evaluate<double>();
  
         // (0.5 * mass * velocity * velocity) + 10 - (5.0 / pi);
         double expected = (half * mass * velocity * velocity) + ten - (five / pi);
@@ -52,9 +52,9 @@ namespace mint_test
 
         expr::Tokens tokens
         {
-            {Scalar::from(base_address), {}},
-            {Scalar::from(index),        expr::Operator::Add},
-            {Scalar::from(align),        expr::Operator::Mul},
+            {expr::Constant(base_address), {}},
+            {expr::Constant(index),        expr::Operator::Add},
+            {expr::Constant(align),        expr::Operator::Mul},
         };
 
         // Parse the tokens and check the result.
@@ -62,8 +62,11 @@ namespace mint_test
         xxas::assert_eq(expression.has_value(), true);
 
         // Evaluate and cast the expression result to a double,
-        auto result     = (*expression).evaluate<std::uintptr_t>();
-        auto value      = *reinterpret_cast<double*>(result);
+        auto result     = expression->evaluate<std::uintptr_t>();
+
+        xxas::assert(result.has_value(), "result.has_value()");
+
+        auto value      = *reinterpret_cast<double*>(result.value());
 
         // Assert the evaluation is equal to the expected value at index.
         xxas::assert_eq(value, array[index]);
