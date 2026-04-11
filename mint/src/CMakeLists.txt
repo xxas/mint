@@ -16,21 +16,14 @@ target_sources(
     mint         PUBLIC FILE_SET
     mint_modules TYPE CXX_MODULES FILES
 
-    # Target Modules.
     mod.cppm
 
-    # Virtual Memory and Virtual CPU.
     memory.cppm
     stackframe.cppm
     cpu.cppm
-
-    # Thread and processs environment blocks.
     context.cppm
 
-    # Scalar extracted byte slice.
     scalar.cppm
-
-    # Traits and semantics systems.
     traits.cppm
     semantics.cppm
     arch.cppm
@@ -40,10 +33,25 @@ target_sources(
     instruction.cppm
 
     binding.cppm
-
     jit_compiler.cppm
-    interpreter.cppm
+    object.cppm
+    instance.cppm
+
+    lexer.cppm
+
+    ir.cppm
+    parser.cppm
+    lowering.cppm
+    linker.cppm
+
+    binary.cppm
+    assembler.cppm
+
+    lifter.cppm
+    executor.cppm
 )
+
+
 
 target_link_libraries(mint PRIVATE m)
 target_link_libraries(mint PRIVATE xxas)

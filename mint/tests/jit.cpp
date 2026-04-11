@@ -7,27 +7,15 @@ namespace mint_tests
     using namespace mint;
 
     constexpr static auto keywords = arch::Keywords
-    {   // Registers.
+    {
         std::pair{"gp0", Traits{traits::Bitness::b64, traits::Source::Register}},
-        std::pair{"gp1", Traits{traits::Bitness::b64, traits::Source::Register}},
-        std::pair{"gp2", Traits{traits::Bitness::b64, traits::Source::Register}},
-
-        // Misc keywords.
-        std::pair{"dword", Traits{traits::Bitness::b64}},
-        std::pair{"word",  Traits{traits::Bitness::b32}},
-        std::pair{"ptr",   Traits{traits::Source::Memory}},
     };
 
     constexpr static auto insns = arch::Insns
     {
-        std::pair{"println", [](const auto& src) -> void { 
-            std::println("src: type: {}, value: {}", typeid(decltype(src)).name(), src); 
-        }},
-        std::pair{"mov", [](auto& dest, const auto& src) -> void { 
-            dest = src; 
-        }},
-        std::pair{"add", [](auto& dest, const auto& a, const auto& b) -> void {
-            dest = a + b;
+        std::pair{"halt", [](auto& state, auto)
+        {
+            state.halt(0);
         }},
     };
 
@@ -36,62 +24,81 @@ namespace mint_tests
         insns, keywords
     };
 
-    void jit_instance_creation()
+    constexpr static auto rules = lexer::Rules
     {
-        // Test basic instance creation and memory allocation.
-        auto instance = InstanceBuilder<arch>()
-            .memory_layout(MemoryDescriptor{})
+        std::array
+        {
+            lexer::Pattern{ lexer::Pattern::Type::Operator, ",", lexer::TokenType::Delimiter },
+        }
+    };
+
+    constexpr static auto dispatch = exec::insn_dispatch<arch>();
+
+    // Minimal encoder/decoder for the halt instruction.
+    struct TestInsn
+    {
+        std::uint16_t op;
+        std::uint8_t  argc = 0;
+        std::uint8_t  pad  = 0;
+    };
+
+    struct TestEncoder
+    {
+        auto encode(const ir::Instruction& insn, const lowering::SymbolResolver&) const
+            -> std::optional<std::vector<std::byte>>
+        {
+            auto opcode = insn_opcode<arch>(insn.name);
+            if(!opcode) return std::nullopt;
+
+            auto bytes = xxas::encode(TestInsn{ .op = *opcode });
+            return std::vector<std::byte>{ bytes.begin(), bytes.end() };
+        };
+
+        auto estimate_size(const ir::Instruction&) const
+            -> std::size_t
+        {
+            return sizeof(TestInsn);
+        };
+    };
+
+    struct TestDecoder
+    {
+        auto decode(std::span<const std::byte> bytes) const
+            -> std::optional<lift::Decoded>
+        {
+            if(bytes.size() < sizeof(TestInsn)) return std::nullopt;
+
+            const auto insn = xxas::decode<TestInsn>(bytes.subspan(0, sizeof(TestInsn)));
+
+            return lift::Decoded
+            {
+                .opcode        = insn.op,
+                .operand_count = insn.argc,
+                .byte_size     = static_cast<std::uint32_t>(sizeof(TestInsn)),
+            };
+        };
+    };
+
+    using Obj     = Object<arch, rules>;
+    using Builder = InstanceBuilder<arch, dispatch, TestEncoder, TestDecoder>;
+
+    void instance_build_and_run()
+    {
+        auto vm = Builder{}
+            .add(Obj::from("main:\n    halt", "main"))
             .build();
 
-        // Allocate stack memory.
-        auto stack_alloc = instance.inner.mem->allocate(stack::default_size);
-        xxas::assert(stack_alloc.has_value(), "Stack allocation should succeed");
+        xxas::assert(vm.has_value());
 
-        std::println("Stack allocated at: {:#x}", *stack_alloc);
-
-        // Allocate some data memory.
-        auto data_alloc = instance.inner.mem->allocate(0x1000);
-        xxas::assert(data_alloc.has_value(), "Data allocation should succeed");
-
-        std::println("Data allocated at: {:#x}", *data_alloc);
-
-        // Verify memory is writable.
-        auto slice = instance.inner.mem->slice<std::uint64_t>(*data_alloc, sizeof(std::uint64_t));
-        xxas::assert(slice.has_value(), "Memory slice should succeed");
-
-        std::uint64_t test_val = 0xDEADBEEF;
-        auto copy_result = slice->copy(std::span<const std::uint64_t>(&test_val, 1));
-        xxas::assert(copy_result == 0u, "Copy should succeed");
-
-        // Read back and verify.
-        auto read_val = slice->shared([](const auto& span) { return span[0]; });
-        xxas::assert_eq(read_val, test_val);
-
-        std::println("Memory write/read test passed!");
-    }
-
-    void jit_thread_context_creation()
-    {
-        // Test thread context initialization.
-        auto instance = InstanceBuilder<arch>()
-            .memory_layout(MemoryDescriptor{})
-            .build();
-
-        auto stack_alloc = instance.inner.mem->allocate(stack::default_size);
-        xxas::assert(stack_alloc.has_value(), "Stack allocation failed");
-
-        // Create process context.
-        auto process_ptr = std::make_shared<ProcessContext<arch>>(
-            instance.inner.cpu,
-            instance.inner.mem
-        );
+        auto result = vm->run();
+        xxas::assert(result.has_value());
+        xxas::assert(*result == 0);
     };
 
 
     constexpr xxas::Tests jit
     {
-        jit_instance_creation,
-        jit_thread_context_creation,
+        instance_build_and_run,
     };
 };
 
